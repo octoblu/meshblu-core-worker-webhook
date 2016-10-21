@@ -145,9 +145,6 @@ describe 'Worker', ->
       beforeEach (done) ->
         data =
           signRequest: true
-          revokeOptions:
-            uuid: 'dumb-uuid'
-            token: 'dumb-token'
           requestOptions:
             method: 'POST'
             uri: '/dumb/hook/signed'
@@ -187,5 +184,5 @@ describe 'Worker', ->
         it 'should hit up the webhook', ->
           @dumbHook.done()
 
-        it 'should expire the token', ->
-          @revokeToken.done()
+        it 'should not expire the token', ->
+          expect(@revokeToken.isDone).to.be.false

@@ -57,6 +57,7 @@ class Worker
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
     @_request { options: requestOptions, signRequest }, (requestError) =>
+      return callback requestError if signRequest
       @_revoke revokeOptions, (revokeError) =>
         callback(requestError ? revokeError ? null)
 
