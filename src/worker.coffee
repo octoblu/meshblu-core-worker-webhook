@@ -2,7 +2,7 @@ _           = require 'lodash'
 request     = require 'request'
 async       = require 'async'
 MeshbluHttp = require 'meshblu-http'
-debug       = require('debug')('meshblu-core-webhook-worker:worker')
+debug       = require('debug')('meshblu-core-worker-webhook:worker')
 
 class Worker
   constructor: (options={})->

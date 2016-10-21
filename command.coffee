@@ -70,7 +70,7 @@ class Command
     options = parser.parse(process.argv)
 
     if options.help
-      console.log "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
+      console.log "usage: meshblu-core-worker-webhook [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
       process.exit 0
 
     if options.version
@@ -78,7 +78,7 @@ class Command
       process.exit 0
 
     unless options.redis_uri? && options.redis_namespace? && options.queue_name? && options.queue_timeout? && options.private_key_base64?
-      console.error "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
+      console.error "usage: meshblu-core-worker-webhook [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
       console.error chalk.red 'Missing required parameter --redis-uri, -r, or env: REDIS_URI' unless options.redis_uri?
       console.error chalk.red 'Missing required parameter --redis-namespace, -n, or env: REDIS_NAMESPACE' unless options.redis_namespace?
       console.error chalk.red 'Missing required parameter --queue-timeout, -t, or env: QUEUE_TIMEOUT' unless options.queue_timeout?

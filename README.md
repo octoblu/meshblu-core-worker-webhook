@@ -1,17 +1,17 @@
-# meshblu-core-webhook-worker
+# meshblu-core-worker-webhook
 
-[![Build Status](https://travis-ci.org/https://github.com/octoblu/meshblu-core-webhook-worker.svg?branch=master)](https://travis-ci.org/https://github.com/octoblu/meshblu-core-webhook-worker)
-[![Test Coverage](https://codecov.io/gh/https://github.com/octoblu/meshblu-core-webhook-worker/branch/master/graph/badge.svg)](https://codecov.io/gh/https://github.com/octoblu/meshblu-core-webhook-worker)
-[![Dependency status](http://img.shields.io/david/https://github.com/octoblu/meshblu-core-webhook-worker.svg?style=flat)](https://david-dm.org/https://github.com/octoblu/meshblu-core-webhook-worker)
-[![devDependency Status](http://img.shields.io/david/dev/https://github.com/octoblu/meshblu-core-webhook-worker.svg?style=flat)](https://david-dm.org/https://github.com/octoblu/meshblu-core-webhook-worker#info=devDependencies)
+[![Build Status](https://travis-ci.org/https://github.com/octoblu/meshblu-core-worker-webhook.svg?branch=master)](https://travis-ci.org/https://github.com/octoblu/meshblu-core-worker-webhook)
+[![Test Coverage](https://codecov.io/gh/https://github.com/octoblu/meshblu-core-worker-webhook/branch/master/graph/badge.svg)](https://codecov.io/gh/https://github.com/octoblu/meshblu-core-worker-webhook)
+[![Dependency status](http://img.shields.io/david/https://github.com/octoblu/meshblu-core-worker-webhook.svg?style=flat)](https://david-dm.org/https://github.com/octoblu/meshblu-core-worker-webhook)
+[![devDependency Status](http://img.shields.io/david/dev/https://github.com/octoblu/meshblu-core-worker-webhook.svg?style=flat)](https://david-dm.org/https://github.com/octoblu/meshblu-core-worker-webhook#info=devDependencies)
 [![Slack Status](http://community-slack.octoblu.com/badge.svg)](http://community-slack.octoblu.com)
 
-[![NPM](https://nodei.co/npm/meshblu-core-webhook-worker.svg?style=flat)](https://npmjs.org/package/meshblu-core-webhook-worker)
+[![NPM](https://nodei.co/npm/meshblu-core-worker-webhook.svg?style=flat)](https://npmjs.org/package/meshblu-core-worker-webhook)
 
 ## Installing
 
 ```bash
-$ npm install meshblu-core-webhook-worker
+$ npm install meshblu-core-worker-webhook
 ```
 
 ### Usage
