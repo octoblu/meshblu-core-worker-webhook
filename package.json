@@ -1,0 +1,66 @@
+{
+  "name": "meshblu-core-webhook-worker",
+  "version": "1.1.6",
+  "description": "Put some description here",
+  "keywords": [
+    "cool",
+    "module"
+  ],
+  "homepage": "https://github.com/octoblu/meshblu-core-webhook-worker",
+  "bugs": "https://github.com/octoblu/meshblu-core-webhook-worker/issues",
+  "author": {
+    "name": "Octoblu",
+    "url": "https://github.com/octoblu"
+  },
+  "bin": "command.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/octoblu/meshblu-core-webhook-worker.git"
+  },
+  "scripts": {
+    "start": "node command.js",
+    "test": "mocha",
+    "coverage": "nyc npm test",
+    "mocha:json": "mocha --reporter json > coverage/mocha.json",
+    "test:watch": "mocha -w -R mocha-multi --reporter-options spec=-,mocha-osx-reporter=-"
+  },
+  "dependencies": {
+    "@octoblu/redis-ns": "^1.3.1",
+    "async": "^2.0.1",
+    "chalk": "^1.1.1",
+    "coffee-script": "^1.10.0",
+    "dashdash": "^1.14.0",
+    "ioredis": "^2.3.0"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "chai-subset": "^1.3.0",
+    "coffee-script": "^1.10.0",
+    "env-test": "^1.0.0",
+    "mocha": "^3.0.2",
+    "mocha-multi": "^0.9.1",
+    "mocha-osx-reporter": "^0.1.2",
+    "nyc": "^8.3.0",
+    "sinon": "^1.17.6",
+    "sinon-chai": "^2.8.0"
+  },
+  "optionalDependencies": {
+    "hiredis": "^0.5.0"
+  },
+  "engines": {
+    "node": ">=5.0.0",
+    "npm": ">=3.0.0"
+  },
+  "license": "MIT",
+  "nyc": {
+    "cache": true,
+    "reporter": [
+      "text-summary",
+      "lcov",
+      "json"
+    ],
+    "extension": [
+      ".coffee"
+    ]
+  }
+}
