@@ -1,6 +1,9 @@
-Worker  = require '../src/worker'
-Redis   = require 'ioredis'
-RedisNS = require '@octoblu/redis-ns'
+Worker         = require '../src/worker'
+shmock         = require 'shmock'
+enableDestroy  = require 'server-destroy'
+Redis          = require 'ioredis'
+{ privateKey } = require './some-private-key.json'
+RedisNS        = require '@octoblu/redis-ns'
 
 describe 'Worker', ->
   beforeEach (done) ->
@@ -10,25 +13,176 @@ describe 'Worker', ->
       @redis.del 'work', done
 
   beforeEach ->
+    @dumbServer = shmock 0xd00d
+    enableDestroy @dumbServer
+    @dumbBaseUrl = "http://localhost:#{0xd00d}"
+    @meshbluServer = shmock 0xbabe
+    enableDestroy @meshbluServer
+    @meshbluBaseUrl = "http://localhost:#{0xbabe}"
+
+  beforeEach ->
     queueName = 'work'
     queueTimeout = 1
-    @sut = new Worker { @redis, queueName, queueTimeout }
+    @sut = new Worker { @redis, queueName, queueTimeout, privateKey }
 
   afterEach (done) ->
     @sut.stop done
 
+  afterEach ->
+    @dumbServer.destroy()
+    @meshbluServer.destroy()
+
   describe '->do', ->
-    context 'test', ->
+    context 'POST /dumb/hook', ->
       beforeEach (done) ->
         data =
-          test: 'test-it'
+          revokeOptions:
+            method: 'DELETE'
+            uri: '/devices/dumb-uuid/tokens/dumb-token'
+            baseUrl: @meshbluBaseUrl
+            auth:
+              username: 'dumb-uuid'
+              password: 'dumb-token'
+          requestOptions:
+            method: 'POST'
+            uri: '/dumb/hook'
+            baseUrl: @dumbBaseUrl
+            json:
+              some: 'data'
+              no:   'data'
+              who:  'knows'
 
         record = JSON.stringify data
         @redis.lpush 'work', record, done
         return # stupid promises
 
-      beforeEach (done) ->
-        @sut.do done
+      describe 'when both requests are succesful', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
 
-      it 'it should not blow up', ->
-        expect(true).to.be.true
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 204
+
+          @sut.do done
+
+        it 'should hit up the webhook', ->
+          @dumbHook.done()
+
+        it 'should expire the token', ->
+          @revokeToken.done()
+
+      describe 'when the main request fails', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 500
+
+          @sut.do done
+
+        it 'should hit up the webhook', ->
+          @dumbHook.done()
+
+        it 'should expire the token', ->
+          @revokeToken.done()
+
+      describe 'when the revoke request fails', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 500
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 500
+
+          @sut.do done
+
+        it 'should hit up the webhook', ->
+          @dumbHook.done()
+
+        it 'should expire the token', ->
+          @revokeToken.done()
+
+    context 'POST /dumb/hook/signed', ->
+      beforeEach (done) ->
+        data =
+          signRequest: true
+          revokeOptions:
+            method: 'DELETE'
+            uri: '/devices/dumb-uuid/tokens/dumb-token'
+            baseUrl: @meshbluBaseUrl
+            auth:
+              username: 'dumb-uuid'
+              password: 'dumb-token'
+          requestOptions:
+            method: 'POST'
+            uri: '/dumb/hook/signed'
+            baseUrl: @dumbBaseUrl
+            headers:
+              'X-MESHBLU-UUID': 'dumb-uuid'
+            json:
+              some: 'data'
+              no:   'data'
+              who:  'knows'
+
+        record = JSON.stringify data
+        @redis.lpush 'work', record, done
+        return # stupid promises
+
+      describe 'when both requests are succesful', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook/signed'
+            .set 'X-MESHBLU-UUID', 'dumb-uuid'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 204
+
+          @sut.do done
+
+        it 'should hit up the webhook', ->
+          @dumbHook.done()
+
+        it 'should expire the token', ->
+          @revokeToken.done()

@@ -35,6 +35,12 @@ OPTIONS = [
     help: 'BRPOP timeout (in seconds)'
   },
   {
+    name: 'private-key-base64'
+    type: 'string'
+    help: 'Base64-encoded private key'
+    env: 'PRIVATE_KEY_BASE64'
+  },
+  {
     names: ['help', 'h']
     type: 'bool'
     help: 'Print this help and exit.'
@@ -55,6 +61,7 @@ class Command
       @redis_namespace
       @queue_timeout
       @queue_name
+      @privateKey
     } = @parseOptions()
 
   parseOptions: =>
@@ -62,31 +69,32 @@ class Command
     options = parser.parse(process.argv)
 
     if options.help
-      console.log "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true})}"
+      console.log "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
       process.exit 0
 
     if options.version
       console.log packageJSON.version
       process.exit 0
 
-    unless options.mongodb_uri? && options.redis_uri? && options.redis_namespace? && options.queue_name? && options.queue_timeout?
-      console.error "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true})}"
-      console.error chalk.red 'Missing required parameter --mongodb-uri, -m, or env: MONGODB_URI' unless options.mongodb_uri?
+    unless options.redis_uri? && options.redis_namespace? && options.queue_name? && options.queue_timeout? && options.private_key_base64?
+      console.error "usage: meshblu-core-webhook-worker [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
       console.error chalk.red 'Missing required parameter --redis-uri, -r, or env: REDIS_URI' unless options.redis_uri?
       console.error chalk.red 'Missing required parameter --redis-namespace, -n, or env: REDIS_NAMESPACE' unless options.redis_namespace?
       console.error chalk.red 'Missing required parameter --queue-timeout, -t, or env: QUEUE_TIMEOUT' unless options.queue_timeout?
       console.error chalk.red 'Missing required parameter --queue-name, -u, or env: QUEUE_NAME' unless options.queue_name?
+      console.error chalk.red 'Missing required parameter --private-key-base64, or env: PRIVATE_KEY_BASE64' unless options.private_key_base64?
       process.exit 1
+
+    options.privateKey = new Buffer(options.private_key_base64, 'base64').toString('utf8')
 
     return options
 
   run: =>
-    db = mongojs @mongodb_uri, ['deployments', 'ci-builds', 'docker-builds']
     client = new Redis @redis_uri, dropBufferSupport: true
     redis = new RedisNS @redis_namespace, client
 
     client.on 'ready', =>
-      worker = new Worker { db, redis, queueName: @queue_name, queueTimeout: @queue_timeout }
+      worker = new Worker { redis, queueName: @queue_name, queueTimeout: @queue_timeout, @privateKey }
       worker.run()
 
       process.on 'SIGINT', =>

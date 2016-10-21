@@ -1,11 +1,7 @@
 {
   "name": "meshblu-core-webhook-worker",
-  "version": "1.1.6",
-  "description": "Put some description here",
-  "keywords": [
-    "cool",
-    "module"
-  ],
+  "version": "1.0.0",
+  "description": "Meshblu Webhook Worker",
   "homepage": "https://github.com/octoblu/meshblu-core-webhook-worker",
   "bugs": "https://github.com/octoblu/meshblu-core-webhook-worker/issues",
   "author": {
@@ -30,7 +26,9 @@
     "chalk": "^1.1.1",
     "coffee-script": "^1.10.0",
     "dashdash": "^1.14.0",
-    "ioredis": "^2.3.0"
+    "debug": "^2.2.0",
+    "ioredis": "^2.3.0",
+    "request": "^2.75.0"
   },
   "devDependencies": {
     "chai": "^3.5.0",
@@ -41,6 +39,8 @@
     "mocha-multi": "^0.9.1",
     "mocha-osx-reporter": "^0.1.2",
     "nyc": "^8.3.0",
+    "server-destroy": "^1.0.1",
+    "shmock": "^0.8.1",
     "sinon": "^1.17.6",
     "sinon-chai": "^2.8.0"
   },
