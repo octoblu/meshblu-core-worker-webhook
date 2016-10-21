@@ -18,12 +18,17 @@ describe 'Worker', ->
     @dumbBaseUrl = "http://localhost:#{0xd00d}"
     @meshbluServer = shmock 0xbabe
     enableDestroy @meshbluServer
-    @meshbluBaseUrl = "http://localhost:#{0xbabe}"
 
   beforeEach ->
     queueName = 'work'
     queueTimeout = 1
-    @sut = new Worker { @redis, queueName, queueTimeout, privateKey }
+    meshbluConfig =
+      hostname: 'localhost'
+      port: 0xbabe
+      protocol: 'http'
+
+    @logFn = sinon.spy()
+    @sut = new Worker { @redis, queueName, queueTimeout, privateKey, meshbluConfig, @logFn }
 
   afterEach (done) ->
     @sut.stop done
@@ -37,12 +42,8 @@ describe 'Worker', ->
       beforeEach (done) ->
         data =
           revokeOptions:
-            method: 'DELETE'
-            uri: '/devices/dumb-uuid/tokens/dumb-token'
-            baseUrl: @meshbluBaseUrl
-            auth:
-              username: 'dumb-uuid'
-              password: 'dumb-token'
+            uuid: 'dumb-uuid'
+            token: 'dumb-token'
           requestOptions:
             method: 'POST'
             uri: '/dumb/hook'
@@ -108,6 +109,9 @@ describe 'Worker', ->
         it 'should expire the token', ->
           @revokeToken.done()
 
+        it 'should not log the error', ->
+          expect(@logFn).to.not.have.been.called
+
       describe 'when the revoke request fails', ->
         beforeEach (done) ->
           dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
@@ -134,17 +138,16 @@ describe 'Worker', ->
         it 'should expire the token', ->
           @revokeToken.done()
 
+        it 'should log the error', ->
+          expect(@logFn).to.have.been.called
+
     context 'POST /dumb/hook/signed', ->
       beforeEach (done) ->
         data =
           signRequest: true
           revokeOptions:
-            method: 'DELETE'
-            uri: '/devices/dumb-uuid/tokens/dumb-token'
-            baseUrl: @meshbluBaseUrl
-            auth:
-              username: 'dumb-uuid'
-              password: 'dumb-token'
+            uuid: 'dumb-uuid'
+            token: 'dumb-token'
           requestOptions:
             method: 'POST'
             uri: '/dumb/hook/signed'

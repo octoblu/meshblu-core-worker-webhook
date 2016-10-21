@@ -1,8 +1,9 @@
-chalk    = require 'chalk'
-dashdash = require 'dashdash'
-Redis    = require 'ioredis'
-RedisNS  = require '@octoblu/redis-ns'
-Worker   = require './src/worker'
+chalk         = require 'chalk'
+dashdash      = require 'dashdash'
+Redis         = require 'ioredis'
+MeshbluConfig = require 'meshblu-config'
+RedisNS       = require '@octoblu/redis-ns'
+Worker        = require './src/worker'
 
 packageJSON = require './package.json'
 
@@ -93,8 +94,10 @@ class Command
     client = new Redis @redis_uri, dropBufferSupport: true
     redis = new RedisNS @redis_namespace, client
 
+    meshbluConfig = new MeshbluConfig
+
     client.on 'ready', =>
-      worker = new Worker { redis, queueName: @queue_name, queueTimeout: @queue_timeout, @privateKey }
+      worker = new Worker { redis, queueName: @queue_name, queueTimeout: @queue_timeout, @privateKey, meshbluConfig }
       worker.run()
 
       process.on 'SIGINT', =>
