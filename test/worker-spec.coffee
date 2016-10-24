@@ -53,7 +53,17 @@ describe 'Worker', ->
       protocol: 'http'
 
     @logFn = sinon.spy()
-    @sut = new Worker { @client, @workLogger, @jobLogger, queueName, queueTimeout, privateKey, meshbluConfig, @logFn }
+    @sut = new Worker {
+      @client,
+      jobLogSampleRate: '1.00',
+      @workLogger,
+      @jobLogger,
+      queueName,
+      queueTimeout,
+      privateKey,
+      meshbluConfig,
+      @logFn
+    }
 
   afterEach (done) ->
     @sut.stop done

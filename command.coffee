@@ -138,6 +138,7 @@ class Command
             client,
             jobLogger,
             workLogger,
+            jobLogSampleRate: @job_log_sample_rate,
             queueName: @queue_name,
             queueTimeout: @queue_timeout,
             @privateKey,

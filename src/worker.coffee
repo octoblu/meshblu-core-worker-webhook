@@ -9,9 +9,10 @@ class Worker
   constructor: (options={})->
     { @privateKey, @meshbluConfig } = options
     { @client, @queueName, @queueTimeout, @logFn } = options
-    { @jobLogger, @workLogger, @logFn } = options
+    { @jobLogger, @workLogger, @jobLogSampleRate, @logFn } = options
     throw new Error('Worker: requires client') unless @client?
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
+    throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
     throw new Error('Worker: requires workLogger') unless @workLogger?
     throw new Error('Worker: requires queueName') unless @queueName?
     throw new Error('Worker: requires queueTimeout') unless @queueTimeout?
@@ -111,11 +112,18 @@ class Worker
       }
     }
 
+  _getJobLogs: =>
+    jobLogs = []
+    if Math.random() < @jobLogSampleRate
+      jobLogs.push 'sampled'
+    return jobLogs
+
   _formatErrorLog: (error) =>
     return {
       metadata:
         code: error?.code ? 500
         success: false
+        jobLogs: @_getJobLogs()
         error:
           message: error?.message ? 'Unknown Error'
     }
@@ -127,6 +135,7 @@ class Worker
       metadata: {
         code: code
         success: code > 399
+        jobLogs: @_getJobLogs()
       }
     }
 
@@ -143,6 +152,7 @@ class Worker
       metadata:
         code: 200
         success: true
+        jobLogs: @_getJobLogs()
     debug '_logWorker', _request, _response
     @workLogger.log {request:_request, response:_response, elapsedTime: workBenchmark.elapsed()}, callback
 
