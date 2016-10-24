@@ -1,6 +1,6 @@
 {
   "name": "meshblu-core-worker-webhook",
-  "version": "2.0.4",
+  "version": "3.0.0",
   "description": "Meshblu Webhook Worker",
   "homepage": "https://github.com/octoblu/meshblu-core-worker-webhook",
   "bugs": "https://github.com/octoblu/meshblu-core-worker-webhook/issues",
@@ -28,10 +28,12 @@
     "dashdash": "^1.14.0",
     "debug": "^2.2.0",
     "ioredis": "^2.3.0",
+    "job-logger": "^4.3.1",
     "meshblu-config": "^6.0.0",
-    "meshblu-http": "^7.4.0",
+    "meshblu-http": "^8.0.0",
     "request": "^2.75.0",
-    "sigterm-handler": "^2.0.0"
+    "sigterm-handler": "^2.0.0",
+    "simple-benchmark": "^1.0.11"
   },
   "devDependencies": {
     "chai": "^3.5.0",

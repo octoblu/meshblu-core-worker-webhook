@@ -1,13 +1,18 @@
-_           = require 'lodash'
-request     = require 'request'
-async       = require 'async'
-MeshbluHttp = require 'meshblu-http'
-debug       = require('debug')('meshblu-core-worker-webhook:worker')
+_               = require 'lodash'
+request         = require 'request'
+async           = require 'async'
+MeshbluHttp     = require 'meshblu-http'
+SimpleBenchmark = require 'simple-benchmark'
+debug           = require('debug')('meshblu-core-worker-webhook:worker')
 
 class Worker
   constructor: (options={})->
-    { @redis, @queueName, @queueTimeout, @privateKey, @meshbluConfig, @logFn } = options
-    throw new Error('Worker: requires redis') unless @redis?
+    { @privateKey, @meshbluConfig } = options
+    { @client, @queueName, @queueTimeout, @logFn } = options
+    { @jobLogger, @workLogger, @logFn } = options
+    throw new Error('Worker: requires client') unless @client?
+    throw new Error('Worker: requires jobLogger') unless @jobLogger?
+    throw new Error('Worker: requires workLogger') unless @workLogger?
     throw new Error('Worker: requires queueName') unless @queueName?
     throw new Error('Worker: requires queueTimeout') unless @queueTimeout?
     throw new Error('Worker: requires privateKey') unless @privateKey?
@@ -20,19 +25,25 @@ class Worker
     @isStopped = false
 
   do: (callback) =>
-    @redis.brpop @queueName, @queueTimeout, (error, result) =>
+    workBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker:worker' }
+    @client.brpop @queueName, @queueTimeout, (error, result) =>
       return callback error if error?
       return callback() unless result?
 
-      [ queue, data ] = result
+      [ queue, jobRequest ] = result
       try
-        data = JSON.parse data
+        jobRequest = JSON.parse jobRequest
       catch error
         return callback error
 
-      @_process data, (error) =>
+      jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker:job' }
+      @_logWorker {workBenchmark, jobRequest}, (error) =>
         @logFn error.stack if error?
-        callback()
+        @_process jobRequest, (error, jobResponse) =>
+          @logFn error.stack if error?
+          @_logJob { jobBenchmark, jobResponse, jobRequest }, (error) =>
+            @logFn error.stack if error?
+            callback()
 
     return # avoid returning promise
 
@@ -56,11 +67,12 @@ class Worker
     , 250
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
-    @_request { options: requestOptions, signRequest }, (requestError) =>
+    @_request { options: requestOptions, signRequest }, (requestError, jobResponse) =>
       return callback requestError if signRequest
       return callback requestError unless revokeOptions?.token?
       @_revoke revokeOptions, (revokeError) =>
-        callback(requestError ? revokeError ? null)
+        error = requestError ? revokeError ? null
+        callback error, jobResponse
 
   _revoke: ({ uuid, token }, callback) =>
     _meshbluConfig = _.cloneDeep @meshbluConfig
@@ -69,16 +81,16 @@ class Worker
     meshbluHttp = new MeshbluHttp _meshbluConfig
     debug 'revoking', { uuid, token }
     meshbluHttp.revokeToken uuid, token, (error) =>
-      return callback new Error "Unable to revokeToken for #{uuid}" if error?
+      return callback error if error?
       callback null
 
   _request: ({ options, signRequest }, callback) =>
     debug 'request.options', options
     debug 'request.signRequest', signRequest
     options.httpSignature = @_createSignatureOptions() if signRequest
-    request options, (error) =>
+    request options, (error, response) =>
       return callback error if error?
-      callback null
+      callback null, response
 
   _createSignatureOptions: =>
     return {
@@ -86,5 +98,21 @@ class Worker
       key: @privateKey
       headers: [ 'date', 'X-MESHBLU-UUID' ]
     }
+
+  _logJob: ({ jobRequest, jobResponse, jobBenchmark }, callback) =>
+    _request = { metadata: jobRequest }
+    resonseJSON = jobResponse?.toJSON?()
+    _response = {
+      metadata:
+        code: responseJSON?.statusCode ? 500
+        request: responseJSON?.request
+    }
+
+    @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
+
+  _logWorker: ({ jobRequest, workBenchmark }, callback) =>
+    _request = { metadata: jobRequest }
+    _response = { metadata: code: 200 }
+    @workLogger.log {request:_request, response:_response, elapsedTime: workBenchmark.elapsed()}, callback
 
 module.exports = Worker

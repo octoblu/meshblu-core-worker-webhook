@@ -2,15 +2,40 @@ Worker         = require '../src/worker'
 shmock         = require 'shmock'
 enableDestroy  = require 'server-destroy'
 Redis          = require 'ioredis'
+JobLogger      = require 'job-logger'
 { privateKey } = require './some-private-key.json'
 RedisNS        = require '@octoblu/redis-ns'
 
 describe 'Worker', ->
   beforeEach (done) ->
-    client = new Redis 'localhost', dropBufferSupport: true
-    client.on 'ready', =>
-      @redis = new RedisNS 'test-worker', client
-      @redis.del 'work', done
+    redisClient = new Redis 'localhost', dropBufferSupport: true
+    redisClient.on 'ready', =>
+      @client = new RedisNS 'test-worker', redisClient
+      @client.del 'work', done
+
+  beforeEach (done) ->
+    redisClient = new Redis 'localhost', dropBufferSupport: true
+    redisClient.on 'ready', =>
+      client = new RedisNS 'test-job-logger', redisClient
+      @jobLogger = new JobLogger {
+        client,
+        indexPrefix: 'test:metric:webhook',
+        type: 'meshblu-core-worker-webhook:job'
+        jobLogQueue: 'sample-rate:1.00'
+      }
+      done()
+
+  beforeEach (done) ->
+    redisClient = new Redis 'localhost', dropBufferSupport: true
+    redisClient.on 'ready', =>
+      client = new RedisNS 'test-job-logger', redisClient
+      @workLogger = new JobLogger {
+        client,
+        indexPrefix: 'test:metric:webhook',
+        type: 'meshblu-core-worker-webhook:work'
+        jobLogQueue: 'sample-rate:1.00'
+      }
+      done()
 
   beforeEach ->
     @dumbServer = shmock 0xd00d
@@ -28,7 +53,7 @@ describe 'Worker', ->
       protocol: 'http'
 
     @logFn = sinon.spy()
-    @sut = new Worker { @redis, queueName, queueTimeout, privateKey, meshbluConfig, @logFn }
+    @sut = new Worker { @client, @workLogger, @jobLogger, queueName, queueTimeout, privateKey, meshbluConfig, @logFn }
 
   afterEach (done) ->
     @sut.stop done
@@ -54,7 +79,7 @@ describe 'Worker', ->
               who:  'knows'
 
         record = JSON.stringify data
-        @redis.lpush 'work', record, done
+        @client.lpush 'work', record, done
         return # stupid promises
 
       describe 'when both requests are succesful', ->
@@ -157,7 +182,7 @@ describe 'Worker', ->
               who:  'knows'
 
         record = JSON.stringify data
-        @redis.lpush 'work', record, done
+        @client.lpush 'work', record, done
         return # stupid promises
 
       describe 'when it hits up the webhook', ->
@@ -200,7 +225,7 @@ describe 'Worker', ->
               who:  'knows'
 
         record = JSON.stringify data
-        @redis.lpush 'work', record, done
+        @client.lpush 'work', record, done
         return # stupid promises
 
       describe 'when it hits up the webhook', ->
