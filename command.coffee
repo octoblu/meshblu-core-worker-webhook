@@ -1,9 +1,10 @@
-chalk         = require 'chalk'
-dashdash      = require 'dashdash'
-Redis         = require 'ioredis'
-MeshbluConfig = require 'meshblu-config'
-RedisNS       = require '@octoblu/redis-ns'
-Worker        = require './src/worker'
+chalk          = require 'chalk'
+dashdash       = require 'dashdash'
+Redis          = require 'ioredis'
+MeshbluConfig  = require 'meshblu-config'
+RedisNS        = require '@octoblu/redis-ns'
+Worker         = require './src/worker'
+SigtermHandler = require 'sigterm-handler'
 
 packageJSON = require './package.json'
 
@@ -92,7 +93,7 @@ class Command
 
   run: =>
     client = new Redis @redis_uri, dropBufferSupport: true
-    redis = new RedisNS @redis_namespace, client
+    redis  = new RedisNS @redis_namespace, client
 
     meshbluConfig = new MeshbluConfig
 
@@ -100,17 +101,8 @@ class Command
       worker = new Worker { redis, queueName: @queue_name, queueTimeout: @queue_timeout, @privateKey, meshbluConfig }
       worker.run()
 
-      process.on 'SIGINT', =>
-        console.log 'SIGINT caught, exiting'
-        worker.stop (error) =>
-          return @panic error if error?
-          process.exit 0
-
-      process.on 'SIGTERM', =>
-        console.log 'SIGTERM caught, exiting'
-        worker.stop (error) =>
-          return @panic error if error?
-          process.exit 0
+      sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
+      sigtermHandler.register worker.stop
 
   die: (error) =>
     return process.exit(0) unless error?

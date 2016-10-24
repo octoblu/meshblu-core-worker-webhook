@@ -83,7 +83,7 @@ describe 'Worker', ->
         it 'should expire the token', ->
           @revokeToken.done()
 
-      describe 'when the main request fails', ->
+      describe 'when the webhook request fails', ->
         beforeEach (done) ->
           dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
 
@@ -160,7 +160,7 @@ describe 'Worker', ->
         @redis.lpush 'work', record, done
         return # stupid promises
 
-      describe 'when both requests are succesful', ->
+      describe 'when it hits up the webhook', ->
         beforeEach (done) ->
           dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
 
@@ -172,6 +172,48 @@ describe 'Worker', ->
           @dumbHook = @dumbServer
             .post '/dumb/hook/signed'
             .set 'X-MESHBLU-UUID', 'dumb-uuid'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 204
+
+          @sut.do done
+
+        it 'should hit up the webhook', ->
+          @dumbHook.done()
+
+        it 'should not expire the token', ->
+          expect(@revokeToken.isDone).to.be.false
+
+    context 'POST /dumb/hook/no-auth', ->
+      beforeEach (done) ->
+        data =
+          requestOptions:
+            method: 'POST'
+            uri: '/dumb/hook/no-auth'
+            baseUrl: @dumbBaseUrl
+            json:
+              some: 'data'
+              no:   'data'
+              who:  'knows'
+
+        record = JSON.stringify data
+        @redis.lpush 'work', record, done
+        return # stupid promises
+
+      describe 'when it hits up the webhook', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook/no-auth'
             .send {
               some: 'data'
               no: 'data'
