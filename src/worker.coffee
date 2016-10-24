@@ -41,7 +41,7 @@ class Worker
         @logFn error.stack if error?
         @_process jobRequest, (error, jobResponse) =>
           @logFn error.stack if error?
-          @_logJob { jobBenchmark, jobResponse, jobRequest }, (error) =>
+          @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
             @logFn error.stack if error?
             callback()
 
@@ -68,8 +68,8 @@ class Worker
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
     @_request { options: requestOptions, signRequest }, (requestError, jobResponse) =>
-      return callback requestError if signRequest
-      return callback requestError unless revokeOptions?.token?
+      return callback requestError, jobResponse if signRequest
+      return callback requestError, jobResponse unless revokeOptions?.token?
       @_revoke revokeOptions, (revokeError) =>
         error = requestError ? revokeError ? null
         callback error, jobResponse
@@ -90,6 +90,7 @@ class Worker
     options.httpSignature = @_createSignatureOptions() if signRequest
     request options, (error, response) =>
       return callback error if error?
+      debug 'response.code', response.statusCode
       callback null, response
 
   _createSignatureOptions: =>
@@ -99,34 +100,50 @@ class Worker
       headers: [ 'date', 'X-MESHBLU-UUID' ]
     }
 
-
   _formatRequestLog: ({ requestOptions, revokeOptions, signRequest }) =>
     return {
       metadata: {
-        requestOptions: {
-          uri: requestOptions?.uri
-          method: requestOptions?.method
+        signRequest: signRequest || false,
+        revokeOptions: {
+          uuid: revokeOptions?.uuid
+          hasToken: revokeOptions?.token?
         }
-        signRequest,
       }
     }
 
-  _formatResponseLog: (jobResponse) =>
-    responseJSON = jobResponse?.toJSON?()
+  _formatErrorLog: (error) =>
     return {
       metadata:
-        code: responseJSON?.statusCode ? 500
-        request: responseJSON?.request
+        code: error?.code ? 500
+        success: false
+        error:
+          message: error?.message ? 'Unknown Error'
     }
 
-  _logJob: ({ jobRequest, jobResponse, jobBenchmark }, callback) =>
+  _formatResponseLog: (jobResponse) =>
+    code = _.get(jobResponse, 'statusCode') ? 500
+    debug 'code', code
+    return {
+      metadata: {
+        code: code
+        success: code > 399
+      }
+    }
+
+  _logJob: ({ error, jobRequest, jobResponse, jobBenchmark }, callback) =>
     _request = @_formatRequestLog jobRequest
     _response = @_formatResponseLog jobResponse
+    _response = @_formatErrorLog error if error
+    debug '_logJob', _request, _response
     @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
 
   _logWorker: ({ jobRequest, workBenchmark }, callback) =>
     _request = @_formatRequestLog jobRequest
-    _response = { metadata: code: 200 }
+    _response =
+      metadata:
+        code: 200
+        success: true
+    debug '_logWorker', _request, _response
     @workLogger.log {request:_request, response:_response, elapsedTime: workBenchmark.elapsed()}, callback
 
 module.exports = Worker
