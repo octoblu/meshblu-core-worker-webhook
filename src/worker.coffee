@@ -99,19 +99,33 @@ class Worker
       headers: [ 'date', 'X-MESHBLU-UUID' ]
     }
 
-  _logJob: ({ jobRequest, jobResponse, jobBenchmark }, callback) =>
-    _request = { metadata: jobRequest }
-    resonseJSON = jobResponse?.toJSON?()
-    _response = {
+
+  _formatRequestLog: ({ requestOptions, revokeOptions, signRequest }) =>
+    return {
+      metadata: {
+        requestOptions: {
+          uri: requestOptions?.uri
+          method: requestOptions?.method
+        }
+        signRequest,
+      }
+    }
+
+  _formatResponseLog: (jobResponse) =>
+    responseJSON = jobResponse?.toJSON?()
+    return {
       metadata:
         code: responseJSON?.statusCode ? 500
         request: responseJSON?.request
     }
 
+  _logJob: ({ jobRequest, jobResponse, jobBenchmark }, callback) =>
+    _request = @_formatRequestLog jobRequest
+    _response = @_formatResponseLog jobResponse
     @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
 
   _logWorker: ({ jobRequest, workBenchmark }, callback) =>
-    _request = { metadata: jobRequest }
+    _request = @_formatRequestLog jobRequest
     _response = { metadata: code: 200 }
     @workLogger.log {request:_request, response:_response, elapsedTime: workBenchmark.elapsed()}, callback
 
