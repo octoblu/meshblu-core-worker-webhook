@@ -50,11 +50,18 @@ OPTIONS = [
     help: 'Name of Redis work queue'
   },
   {
-    names: ['queue-timeout', 't']
+    names: ['queue-timeout']
     type: 'positiveInteger'
     env: 'QUEUE_TIMEOUT'
     default: 30
     help: 'BRPOP timeout (in seconds)'
+  },
+  {
+    names: ['request-timeout']
+    type: 'positiveInteger'
+    env: 'REQUEST_TIMEOUT'
+    default: 15
+    help: 'Request timeout (in seconds)'
   },
   {
     name: 'private-key-base64'
@@ -82,6 +89,7 @@ class Command
       @redis_uri
       @redis_namespace
       @queue_timeout
+      @request_timeout
       @queue_name
       @privateKey
       @job_log_redis_uri
@@ -141,10 +149,12 @@ class Command
             jobLogSampleRate: @job_log_sample_rate,
             queueName: @queue_name,
             queueTimeout: @queue_timeout,
+            requestTimeout: @request_timeout,
             @privateKey,
             meshbluConfig
           }
-          worker.run()
+
+          worker.run @die
 
           sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
           sigtermHandler.register worker.stop

@@ -58,6 +58,7 @@ describe 'Worker', ->
       jobLogSampleRate: '1.00',
       @workLogger,
       @jobLogger,
+      requestTimeout: 1,
       queueName,
       queueTimeout,
       privateKey,
@@ -73,7 +74,7 @@ describe 'Worker', ->
     @meshbluServer.destroy()
 
   describe '->do', ->
-    context 'POST /dumb/hook', ->
+    describe 'POST /dumb/hook', ->
       beforeEach (done) ->
         data =
           revokeOptions:
@@ -117,6 +118,54 @@ describe 'Worker', ->
 
         it 'should expire the token', ->
           @revokeToken.done()
+
+      describe 'when the webhook request times out', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .delay 1100
+            .reply 204
+
+          @sut.do done
+
+        it 'should expire the token', ->
+          @revokeToken.done()
+
+      describe 'when the revokeToken request times out', ->
+        beforeEach (done) ->
+          dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+          @revokeToken = @meshbluServer
+            .delete '/devices/dumb-uuid/tokens/dumb-token'
+            .set 'Authorization', "Basic #{dumbAuth}"
+            .delay 1100
+            .reply 204
+
+          @dumbHook = @dumbServer
+            .post '/dumb/hook'
+            .send {
+              some: 'data'
+              no: 'data'
+              who: 'knows'
+            }
+            .reply 204
+
+          @sut.do done
+
+        it 'should hitting up the webhook', ->
+          @dumbHook.done()
 
       describe 'when the webhook request fails', ->
         beforeEach (done) ->
@@ -163,7 +212,7 @@ describe 'Worker', ->
               no: 'data'
               who: 'knows'
             }
-            .reply 500
+            .reply 200
 
           @sut.do done
 
@@ -176,7 +225,7 @@ describe 'Worker', ->
         it 'should log the error', ->
           expect(@logFn).to.have.been.called
 
-    context 'POST /dumb/hook/signed', ->
+    describe 'POST /dumb/hook/signed', ->
       beforeEach (done) ->
         data =
           signRequest: true
@@ -222,7 +271,7 @@ describe 'Worker', ->
         it 'should not expire the token', ->
           expect(@revokeToken.isDone).to.be.false
 
-    context 'POST /dumb/hook/no-auth', ->
+    describe 'POST /dumb/hook/no-auth', ->
       beforeEach (done) ->
         data =
           requestOptions:

@@ -10,6 +10,7 @@ class Worker
     { @privateKey, @meshbluConfig } = options
     { @client, @queueName, @queueTimeout, @logFn } = options
     { @jobLogger, @workLogger, @jobLogSampleRate, @logFn } = options
+    { @requestTimeout } = options
     throw new Error('Worker: requires client') unless @client?
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
     throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
@@ -18,6 +19,7 @@ class Worker
     throw new Error('Worker: requires queueTimeout') unless @queueTimeout?
     throw new Error('Worker: requires privateKey') unless @privateKey?
     throw new Error('Worker: requires meshbluConfig') unless @meshbluConfig?
+    throw new Error('Worker: requires requestTimeout') unless @requestTimeout?
     delete @meshbluConfig.uuid
     delete @meshbluConfig.token
     debug 'using meshblu config', @meshbluConfig
@@ -48,11 +50,13 @@ class Worker
 
     return # avoid returning promise
 
-  run: =>
+  run: (callback) =>
     async.doUntil @do, (=> @shouldStop), =>
-      @isStopped = true
+      debug('STOPPED!')
+      callback()
 
   stop: (callback) =>
+    debug('STOPPING...')
     @shouldStop = true
 
     timeout = setTimeout =>
@@ -66,13 +70,15 @@ class Worker
       clearTimeout timeout
       callback()
     , 250
-
+    
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
-    requestOptions = _.defaults timeout: 5000, requestOptions
+    signRequest ?= false
     @_request { options: requestOptions, signRequest }, (requestError, jobResponse) =>
+      requestError?.type = 'RequestError'
       return callback requestError, jobResponse if signRequest
       return callback requestError, jobResponse unless revokeOptions?.token?
       @_revoke revokeOptions, (revokeError) =>
+        revokeError?.type = 'RevokeError'
         error = requestError ? revokeError ? null
         callback error, jobResponse
 
@@ -80,8 +86,9 @@ class Worker
     _meshbluConfig = _.cloneDeep @meshbluConfig
     _meshbluConfig.uuid = uuid
     _meshbluConfig.token = token
+    _meshbluConfig.timeout = @requestTimeout * 1000
     meshbluHttp = new MeshbluHttp _meshbluConfig
-    debug 'revoking', { uuid, token }
+    debug 'revoking', { uuid, token, timeout: _meshbluConfig.timeout }
     meshbluHttp.revokeToken uuid, token, (error) =>
       return callback error if error?
       callback null
@@ -90,6 +97,7 @@ class Worker
     debug 'request.options', options
     debug 'request.signRequest', signRequest
     options.httpSignature = @_createSignatureOptions() if signRequest
+    options.timeout = @requestTimeout * 1000
     request options, (error, response) =>
       return callback error if error?
       debug 'response.code', response.statusCode
@@ -120,12 +128,15 @@ class Worker
     return jobLogs
 
   _formatErrorLog: (error) =>
+    code = error?.code ? 500
+    code = 408 if code == 'ETIMEDOUT'
     return {
       metadata:
-        code: error?.code ? 500
+        code: code
         success: false
         jobLogs: @_getJobLogs()
         error:
+          type: error?.type ? 'Unknown Type'
           message: error?.message ? 'Unknown Error'
     }
 
