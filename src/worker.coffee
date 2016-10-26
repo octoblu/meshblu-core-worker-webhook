@@ -70,7 +70,7 @@ class Worker
       clearTimeout timeout
       callback()
     , 250
-    
+
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
     signRequest ?= false
     @_request { options: requestOptions, signRequest }, (requestError, jobResponse) =>
@@ -110,10 +110,17 @@ class Worker
       headers: [ 'date', 'X-MESHBLU-UUID' ]
     }
 
-  _formatRequestLog: ({ requestOptions, revokeOptions, signRequest }) =>
+  _getJobLogs: =>
+    jobLogs = []
+    if Math.random() < @jobLogSampleRate
+      jobLogs.push 'sampled'
+    return jobLogs
+
+  _formatRequestLog: ({ requestOptions, revokeOptions, signRequest }, url) =>
     return {
       metadata: {
         signRequest: signRequest || false,
+        url: url
         revokeOptions: {
           uuid: revokeOptions?.uuid
           hasToken: revokeOptions?.token?
@@ -121,13 +128,7 @@ class Worker
       }
     }
 
-  _getJobLogs: =>
-    jobLogs = []
-    if Math.random() < @jobLogSampleRate
-      jobLogs.push 'sampled'
-    return jobLogs
-
-  _formatErrorLog: (error) =>
+  _formatErrorLog: (error, url) =>
     code = error?.code ? 500
     code = 408 if code == 'ETIMEDOUT'
     return {
@@ -135,26 +136,29 @@ class Worker
         code: code
         success: false
         jobLogs: @_getJobLogs()
+        url: url
         error:
           type: error?.type ? 'Unknown Type'
           message: error?.message ? 'Unknown Error'
     }
 
-  _formatResponseLog: (jobResponse) =>
+  _formatResponseLog: (jobResponse, url) =>
     code = _.get(jobResponse, 'statusCode') ? 500
     debug 'code', code
     return {
       metadata: {
         code: code
         success: code > 399
+        url: url
         jobLogs: @_getJobLogs()
       }
     }
 
   _logJob: ({ error, jobRequest, jobResponse, jobBenchmark }, callback) =>
-    _request = @_formatRequestLog jobRequest
-    _response = @_formatResponseLog jobResponse
-    _response = @_formatErrorLog error if error
+    url = _.get(jobRequest, 'requestOptions.url')
+    _request = @_formatRequestLog jobRequest, url
+    _response = @_formatResponseLog jobResponse, url
+    _response = @_formatErrorLog error, url if error?
     debug '_logJob', _request, _response
     @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
 
