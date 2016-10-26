@@ -68,6 +68,7 @@ class Worker
     , 250
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
+    requestOptions = _.defaults timeout: 5000, requestOptions
     @_request { options: requestOptions, signRequest }, (requestError, jobResponse) =>
       return callback requestError, jobResponse if signRequest
       return callback requestError, jobResponse unless revokeOptions?.token?
