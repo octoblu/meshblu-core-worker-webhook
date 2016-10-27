@@ -9,12 +9,11 @@ class Worker
   constructor: (options={})->
     { @privateKey, @meshbluConfig } = options
     { @client, @queueName, @queueTimeout, @logFn } = options
-    { @jobLogger, @workLogger, @jobLogSampleRate, @logFn } = options
+    { @jobLogger, @jobLogSampleRate } = options
     { @requestTimeout } = options
     throw new Error('Worker: requires client') unless @client?
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
     throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
-    throw new Error('Worker: requires workLogger') unless @workLogger?
     throw new Error('Worker: requires queueName') unless @queueName?
     throw new Error('Worker: requires queueTimeout') unless @queueTimeout?
     throw new Error('Worker: requires privateKey') unless @privateKey?
@@ -27,8 +26,14 @@ class Worker
     @shouldStop = false
     @isStopped = false
 
+  doWithNextTick: (callback) =>
+    # give some time for garbage collection
+    process.nextTick =>
+      @do (error) =>
+        process.nextTick =>
+          callback error
+
   do: (callback) =>
-    workBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker:worker' }
     @client.brpop @queueName, @queueTimeout, (error, result) =>
       return callback error if error?
       return callback() unless result?
@@ -39,19 +44,17 @@ class Worker
       catch error
         return callback error
 
-      jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker:job' }
-      @_logWorker {workBenchmark, jobRequest}, (error) =>
+      jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
+      @_process jobRequest, (error, jobResponse) =>
         @logFn error.stack if error?
-        @_process jobRequest, (error, jobResponse) =>
+        @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
           @logFn error.stack if error?
-          @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
-            @logFn error.stack if error?
-            callback()
+          callback()
 
     return # avoid returning promise
 
   run: (callback) =>
-    async.doUntil @do, (=> @shouldStop), =>
+    async.doUntil @doWithNextTick, (=> @shouldStop), =>
       debug('STOPPED!')
       callback()
 
@@ -161,15 +164,5 @@ class Worker
     _response = @_formatErrorLog error, url if error?
     debug '_logJob', _request, _response
     @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
-
-  _logWorker: ({ jobRequest, workBenchmark }, callback) =>
-    _request = @_formatRequestLog jobRequest
-    _response =
-      metadata:
-        code: 200
-        success: true
-        jobLogs: @_getJobLogs()
-    debug '_logWorker', _request, _response
-    @workLogger.log {request:_request, response:_response, elapsedTime: workBenchmark.elapsed()}, callback
 
 module.exports = Worker

@@ -140,24 +140,21 @@ class Command
       return @die error if error?
       @getJobLogger (error, jobLogger) =>
         return @die error if error?
-        @getWorkClient (error, workLogger) =>
-          return @die error if error?
-          worker = new Worker {
-            client,
-            jobLogger,
-            workLogger,
-            jobLogSampleRate: @job_log_sample_rate,
-            queueName: @queue_name,
-            queueTimeout: @queue_timeout,
-            requestTimeout: @request_timeout,
-            @privateKey,
-            meshbluConfig
-          }
+        worker = new Worker {
+          client,
+          jobLogger,
+          jobLogSampleRate: @job_log_sample_rate,
+          queueName: @queue_name,
+          queueTimeout: @queue_timeout,
+          requestTimeout: @request_timeout,
+          @privateKey,
+          meshbluConfig
+        }
 
-          worker.run @die
+        worker.run @die
 
-          sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
-          sigtermHandler.register worker.stop
+        sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
+        sigtermHandler.register worker.stop
 
   getJobLogger: (callback) =>
     @getRedisClient @job_log_redis_uri, (error, client) =>
@@ -166,17 +163,6 @@ class Command
         client,
         indexPrefix: 'metric:meshblu-core-worker-webhook'
         type: 'meshblu-core-worker-webhook:job'
-        jobLogQueue: @job_log_queue
-      }
-      callback null, jobLogger
-
-  getWorkClient: (callback) =>
-    @getRedisClient @job_log_redis_uri, (error, client) =>
-      return callback error if error?
-      jobLogger = new JobLogger {
-        client,
-        indexPrefix: 'metric:meshblu-core-worker-webhook'
-        type: 'meshblu-core-worker-webhook:worker'
         jobLogQueue: @job_log_queue
       }
       callback null, jobLogger
