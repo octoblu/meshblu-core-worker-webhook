@@ -134,7 +134,7 @@ class Command
     return options
 
   run: =>
-    meshbluConfig = new MeshbluConfig
+    meshbluConfig = new MeshbluConfig().toJSON()
 
     @getWorkerClient (error, client) =>
       return @die error if error?

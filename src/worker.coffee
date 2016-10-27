@@ -21,7 +21,6 @@ class Worker
     throw new Error('Worker: requires requestTimeout') unless @requestTimeout?
     delete @meshbluConfig.uuid
     delete @meshbluConfig.token
-    debug 'using meshblu config', @meshbluConfig
     @logFn ?= console.error
     @shouldStop = false
     @isStopped = false
