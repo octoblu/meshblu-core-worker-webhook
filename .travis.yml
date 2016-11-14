@@ -15,3 +15,11 @@ after_success:
 notifications:
   webhooks:
     - 'https://beekeeper.octoblu.com/webhooks/travis:ci'
+deploy:
+  provider: npm
+  email: serveradmin@octoblu.com
+  api_key:
+    secure: "i5RQDKGM4OsprZiTM+CsUd8ga4YeeRLAA7BbobIak4ORV827WjATd7Dvu+5I28vSGlpy6K6g8qfWh3DB5YuMgZ6h67VW70p2wOZ2LobezDP0bkz9IuKDzU23MInH7VO+N6KaQ7o908UY8w/W5PRyxBWauhY9ssVQ6hhNeO4YuK3i0q2W2HxB3VmKNaEkHirbnOnsCih00hepg0k6/ivcYxfwSKpOhSQH2qXrHwu2kZi7aC0BBkit6Z4AP5HZG7xV0hjqAI41PmecxDMEqPimWgyrGQRjKdUqOefIVl9pEyiXjy0u+EAPOkoLbGzPi4dZvYs+Pnvh5PvSZTwof9f1Dofuu+9JsQa7trOtBYjlseGAV/2DyxQMoRsB3+z8AhY8JSihK1eAN3+MFqSIaYW2OcdnLQu4OKFxh53tsBxH/1ViZyYuf70e0bcNCKXIBJ1RuSsef1RmMhunsSS6CBkDsbb4pd0IflHf8LlyHzOHnDYTFzWlH6+GTfzH3X/5R7QFnLeqgDJCc8lod3gfzoFauUaiQn+ueoHfQulfrGAT+jHUtZXvnsGoYvnU4KJCIg8avLBcwD2AuTjJeNMohFeEQ+IeJS/kwlDFjlruJFcGpkP9WK5fgSQcB0Swp2DzmmRgzGds0iyfu9rcmLtpnMLqcI8VbNbscUM29FNq3A7+KQQ="
+  on:
+    tags: true
+    branches: true

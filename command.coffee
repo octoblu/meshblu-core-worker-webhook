@@ -1,11 +1,8 @@
 _              = require 'lodash'
 chalk          = require 'chalk'
 dashdash       = require 'dashdash'
-Redis          = require 'ioredis'
 MeshbluConfig  = require 'meshblu-config'
-JobLogger      = require 'job-logger'
-RedisNS        = require '@octoblu/redis-ns'
-Worker         = require './src/worker'
+WorkerRunner   = require './src/worker-runner'
 SigtermHandler = require 'sigterm-handler'
 
 packageJSON = require './package.json'
@@ -18,9 +15,9 @@ OPTIONS = [
     help: 'Redis URI'
   }
   {
-    names: ['redis-namespace', 'n']
+    names: ['namespace', 'n']
     type: 'string'
-    env: 'REDIS_NAMESPACE'
+    env: 'NAMESPACE'
     default: 'meshblu-webhooks'
     help: 'Redis namespace for redis-ns'
   }
@@ -85,9 +82,8 @@ class Command
   constructor: ->
     process.on 'uncaughtException', @die
     {
-      @mongodb_uri
       @redis_uri
-      @redis_namespace
+      @namespace
       @queue_timeout
       @request_timeout
       @queue_name
@@ -96,6 +92,7 @@ class Command
       @job_log_queue
       @job_log_sample_rate
     } = @parseOptions()
+    @meshbluConfig = new MeshbluConfig().toJSON()
 
   parseOptions: =>
     parser = dashdash.createParser({options: OPTIONS})
@@ -109,10 +106,12 @@ class Command
       console.log packageJSON.version
       process.exit 0
 
-    unless options.redis_uri? && options.redis_namespace? && options.queue_name? && options.queue_timeout?
+    options.namespace ?= process.env.REDIS_NAMESPACE
+
+    unless options.redis_uri? && options.namespace? && options.queue_name? && options.queue_timeout?
       console.error "usage: meshblu-core-worker-webhook [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
       console.error chalk.red 'Missing required parameter --redis-uri, -r, or env: REDIS_URI' unless options.redis_uri?
-      console.error chalk.red 'Missing required parameter --redis-namespace, -n, or env: REDIS_NAMESPACE' unless options.redis_namespace?
+      console.error chalk.red 'Missing required parameter --namespace, -n, or env: NAMESPACE' unless options.namespace?
       console.error chalk.red 'Missing required parameter --queue-timeout, -t, or env: QUEUE_TIMEOUT' unless options.queue_timeout?
       console.error chalk.red 'Missing required parameter --queue-name, -u, or env: QUEUE_NAME' unless options.queue_name?
       process.exit 1
@@ -134,53 +133,20 @@ class Command
     return options
 
   run: =>
-    meshbluConfig = new MeshbluConfig().toJSON()
-
-    @getWorkerClient (error, client) =>
-      return @die error if error?
-      @getJobLogger (error, jobLogger) =>
-        return @die error if error?
-        worker = new Worker {
-          client,
-          jobLogger,
-          jobLogSampleRate: @job_log_sample_rate,
-          queueName: @queue_name,
-          queueTimeout: @queue_timeout,
-          requestTimeout: @request_timeout,
-          @privateKey,
-          meshbluConfig
-        }
-
-        worker.run @die
-
-        sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
-        sigtermHandler.register worker.stop
-
-  getJobLogger: (callback) =>
-    @getRedisClient @job_log_redis_uri, (error, client) =>
-      return callback error if error?
-      jobLogger = new JobLogger {
-        client,
-        indexPrefix: 'metric:meshblu-core-worker-webhook'
-        type: 'meshblu-core-worker-webhook:job'
-        jobLogQueue: @job_log_queue
-      }
-      callback null, jobLogger
-
-  getWorkerClient: (callback) =>
-    @getRedisClient @redis_uri, (error, client) =>
-      return callback error if error?
-      clientNS  = new RedisNS @redis_namespace, client
-      callback null, clientNS
-
-  getRedisClient: (redisUri, callback) =>
-    callback = _.once callback
-    client = new Redis redisUri, dropBufferSupport: true
-    client.once 'ready', =>
-      client.on 'error', @die
-      callback null, client
-
-    client.once 'error', callback
+    workerRunner = new WorkerRunner {
+      jobLogRedisUri: @job_log_redis_uri
+      jobLogQueue: @job_log_queue
+      jobLogSampleRate: @job_log_sample_rate,
+      queueName: @queue_name,
+      queueTimeout: @queue_timeout,
+      requestTimeout: @request_timeout,
+      @namespace,
+      @privateKey,
+      @meshbluConfig
+    }
+    workerRunner.run @die
+    sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
+    sigtermHandler.register workerRunner.stop
 
   die: (error) =>
     return process.exit(0) unless error?
