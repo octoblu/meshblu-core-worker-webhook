@@ -52,7 +52,7 @@ describe 'Worker', ->
       port: 0xbabe
       protocol: 'http'
 
-    @logFn = sinon.spy()
+    @consoleError = sinon.spy()
     @sut = new Worker {
       @client,
       jobLogSampleRate: '1.00',
@@ -63,17 +63,14 @@ describe 'Worker', ->
       queueTimeout,
       privateKey,
       meshbluConfig,
-      @logFn
+      @consoleError
     }
-
-  afterEach (done) ->
-    @sut.stop done
 
   afterEach ->
     @dumbServer.destroy()
     @meshbluServer.destroy()
 
-  describe '->do', ->
+  describe '->doAndDrain', ->
     describe 'POST /dumb/hook', ->
       beforeEach (done) ->
         data =
@@ -111,7 +108,7 @@ describe 'Worker', ->
             }
             .reply 204
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hit up the webhook', ->
           @dumbHook.done()
@@ -138,7 +135,7 @@ describe 'Worker', ->
             .delay 1100
             .reply 204
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should expire the token', ->
           @revokeToken.done()
@@ -162,7 +159,7 @@ describe 'Worker', ->
             }
             .reply 204
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hitting up the webhook', ->
           @dumbHook.done()
@@ -185,7 +182,7 @@ describe 'Worker', ->
             }
             .reply 500
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hit up the webhook', ->
           @dumbHook.done()
@@ -194,7 +191,7 @@ describe 'Worker', ->
           @revokeToken.done()
 
         it 'should not log the error', ->
-          expect(@logFn).to.not.have.been.called
+          expect(@consoleError).to.not.have.been.called
 
       describe 'when the revoke request fails', ->
         beforeEach (done) ->
@@ -214,7 +211,7 @@ describe 'Worker', ->
             }
             .reply 200
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hit up the webhook', ->
           @dumbHook.done()
@@ -223,7 +220,7 @@ describe 'Worker', ->
           @revokeToken.done()
 
         it 'should log the error', ->
-          expect(@logFn).to.have.been.called
+          expect(@consoleError).to.have.been.called
 
     describe 'POST /dumb/hook/signed', ->
       beforeEach (done) ->
@@ -263,7 +260,7 @@ describe 'Worker', ->
             }
             .reply 204
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hit up the webhook', ->
           @dumbHook.done()
@@ -305,7 +302,7 @@ describe 'Worker', ->
             }
             .reply 204
 
-          @sut.do done
+          @sut.doAndDrain done
 
         it 'should hit up the webhook', ->
           @dumbHook.done()

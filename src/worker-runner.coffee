@@ -6,10 +6,12 @@ Worker    = require './worker'
 
 class WorkerRunner
   constructor: (options) ->
+    {@redisUri,@concurrency} = options
     {@privateKey,@requestTimeout} = options
     {@jobLogRedisUri,@jobLogQueue,@jobLogSampleRate} = options
     {@queueName,@queueTimeout} = options
     {@meshbluConfig,@namespace} = options
+    throw new Error 'WorkerRunner: requires redisUri' unless @redisUri?
     throw new Error 'WorkerRunner: requires jobLogRedisUri' unless @jobLogRedisUri?
     throw new Error 'WorkerRunner: requires jobLogQueue' unless @jobLogQueue?
     throw new Error 'WorkerRunner: requires jobLogSampleRate' unless @jobLogSampleRate?
@@ -37,17 +39,20 @@ class WorkerRunner
           @privateKey,
           @meshbluConfig,
           @jobLogSampleRate,
+          @concurrency,
         }
         @worker.run callback
 
   getJobLogger: (callback) =>
+    indexPrefix = 'metric:meshblu-core-worker-webhook'
+    type = 'meshblu-core-worker-webhook:job'
     @getRedisClient @jobLogRedisUri, (error, client) =>
       return callback error if error?
       jobLogger = new JobLogger {
         client,
-        indexPrefix: 'metric:meshblu-core-worker-webhook'
-        type: 'meshblu-core-worker-webhook:job'
-        jobLogQueue: @jobLogQueue
+        @jobLogQueue
+        indexPrefix
+        type
       }
       callback null, jobLogger
 
@@ -60,10 +65,9 @@ class WorkerRunner
   getRedisClient: (redisUri, callback) =>
     callback = _.once callback
     client = new Redis redisUri, dropBufferSupport: true
+    client = _.bindAll client, _.functionsIn(client)
     client.once 'ready', =>
-      client.on 'error', callback
       callback null, client
-
     client.once 'error', callback
 
 module.exports = WorkerRunner

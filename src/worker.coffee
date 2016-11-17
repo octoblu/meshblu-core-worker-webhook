@@ -8,9 +8,9 @@ debug           = require('debug')('meshblu-core-worker-webhook:worker')
 class Worker
   constructor: (options={})->
     { @privateKey, @meshbluConfig } = options
-    { @client, @queueName, @queueTimeout, @logFn } = options
+    { @client, @queueName, @queueTimeout, @consoleError } = options
     { @jobLogger, @jobLogSampleRate } = options
-    { @requestTimeout } = options
+    { @requestTimeout, concurrency } = options
     throw new Error('Worker: requires client') unless @client?
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
     throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
@@ -21,9 +21,17 @@ class Worker
     throw new Error('Worker: requires requestTimeout') unless @requestTimeout?
     delete @meshbluConfig.uuid
     delete @meshbluConfig.token
-    @logFn ?= console.error
-    @shouldStop = false
-    @isStopped = false
+    @requestTimeout = @requestTimeout * 1000
+    debug 'request timeout', @requestTimeout
+    @consoleError ?= @_consoleError
+    @_shouldStop = false
+    concurrency ?= 1
+    debug 'concurrency', concurrency
+    @queue = async.queue @doTask, concurrency
+
+  _consoleError: =>
+    debug 'got error', arguments...
+    console.error new Date().toString(), arguments...
 
   doWithNextTick: (callback) =>
     # give some time for garbage collection
@@ -33,45 +41,53 @@ class Worker
           callback error
 
   do: (callback) =>
+    debug 'process do'
     @client.brpop @queueName, @queueTimeout, (error, result) =>
       return callback error if error?
       return callback() unless result?
-
-      [ queue, jobRequest ] = result
+      [ _queue, rawData ] = result
       try
-        jobRequest = JSON.parse jobRequest
+        jobRequest = JSON.parse rawData
       catch error
-        return callback error
+        @consoleError 'Unable to parse', jobRequest
+        @queue.drain = =>
+          debug 'drained...'
+          callback error
+        return
+      debug 'insert into queue'
+      @queue.push jobRequest
+      callback null
+    return # avoid returning promise
 
-      jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
-      @_process jobRequest, (error, jobResponse) =>
-        @logFn error.stack if error?
-        @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
-          @logFn error.stack if error?
-          callback()
+  doAndDrain: (callback) =>
+    @do (error) =>
+      return callback error if error?
+      @queue.drain = callback
 
+  doTask: (jobRequest, callback) =>
+    jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
+    @_process jobRequest, (error, jobResponse) =>
+      @consoleError 'Process Error', error.stack if error?
+      @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
+        @consoleError 'Log Job Error', error.stack if error?
+        callback()
     return # avoid returning promise
 
   run: (callback) =>
-    async.doUntil @doWithNextTick, (=> @shouldStop), =>
-      debug('STOPPED!')
-      callback()
+    async.doUntil @doWithNextTick, @shouldStop, (error) =>
+      debug 'stopped', error
+      @consoleError 'Worker Run Error', error if error?
+      callback error
 
   stop: (callback) =>
-    debug('STOPPING...')
-    @shouldStop = true
+    debug 'stop'
+    @_shouldStop = true
+    @queue.drain = callback
+    _.delay @queue.kill, 1000
 
-    timeout = setTimeout =>
-      clearInterval interval
-      callback new Error 'Stop Timeout Expired'
-    , 5000
-
-    interval = setInterval =>
-      return unless @isStopped?
-      clearInterval interval
-      clearTimeout timeout
-      callback()
-    , 250
+  shouldStop: =>
+    debug 'stopping' if @_shouldStop
+    return @_shouldStop
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
     signRequest ?= false
@@ -88,7 +104,7 @@ class Worker
     _meshbluConfig = _.cloneDeep @meshbluConfig
     _meshbluConfig.uuid = uuid
     _meshbluConfig.token = token
-    _meshbluConfig.timeout = @requestTimeout * 1000
+    _meshbluConfig.timeout = @requestTimeout
     meshbluHttp = new MeshbluHttp _meshbluConfig
     debug 'revoking', { uuid, token, timeout: _meshbluConfig.timeout }
     meshbluHttp.revokeToken uuid, token, (error) =>
@@ -99,7 +115,7 @@ class Worker
     debug 'request.options', options
     debug 'request.signRequest', signRequest
     options.httpSignature = @_createSignatureOptions() if signRequest
-    options.timeout = @requestTimeout * 1000
+    options.timeout = @requestTimeout
     request options, (error, response) =>
       return callback error if error?
       debug 'response.code', response.statusCode
@@ -120,14 +136,15 @@ class Worker
 
   _formatRequestLog: ({ requestOptions, revokeOptions, signRequest }, url) =>
     return {
-      metadata: {
+      metadata:
         signRequest: signRequest || false,
-        url: url
-        revokeOptions: {
+        taskName: url
+        jobType: 'webhook'
+        auth:
+          uuid: revokeOptions?.uuid
+        revokeOptions:
           uuid: revokeOptions?.uuid
           hasToken: revokeOptions?.token?
-        }
-      }
     }
 
   _formatErrorLog: (error, url) =>
@@ -138,7 +155,8 @@ class Worker
         code: code
         success: false
         jobLogs: @_getJobLogs()
-        url: url
+        jobType: 'webhook'
+        taskName: url
         error:
           type: error?.type ? 'Unknown Type'
           message: error?.message ? 'Unknown Error'
@@ -148,12 +166,12 @@ class Worker
     code = _.get(jobResponse, 'statusCode') ? 500
     debug 'code', code
     return {
-      metadata: {
+      metadata:
         code: code
         success: code > 399
-        url: url
+        taskName: url
+        jobType: 'webhook'
         jobLogs: @_getJobLogs()
-      }
     }
 
   _logJob: ({ error, jobRequest, jobResponse, jobBenchmark }, callback) =>

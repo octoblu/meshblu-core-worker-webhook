@@ -1,20 +1,24 @@
 language: node_js
 node_js:
-  - '5'
+- '5'
 services:
-  - mongodb
-  - redis
+- mongodb
+- redis
 branches:
   only:
-    - '/^v[0-9]/'
+  - '/^v[0-9]/'
+before_install:
+- npm install --global yarn
+install:
+- yarn install
 after_success:
-  - npm run coverage
-  - 'npm run mocha:json'
-  - 'bash <(curl -s https://codecov.io/bash)'
-  - 'bash <(curl -s https://codecov.octoblu.com/bash)'
+- 'npm run coverage'
+- 'npm run mocha:json'
+- 'bash <(curl -s https://codecov.io/bash)'
+- 'bash <(curl -s https://codecov.octoblu.com/bash)'
 notifications:
   webhooks:
-    - 'https://beekeeper.octoblu.com/webhooks/travis:ci'
+  - 'https://beekeeper.octoblu.com/webhooks/travis:ci'
 deploy:
   provider: npm
   email: serveradmin@octoblu.com

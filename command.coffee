@@ -9,13 +9,13 @@ packageJSON = require './package.json'
 
 OPTIONS = [
   {
-    names: ['redis-uri', 'r']
+    name: 'redis-uri'
     type: 'string'
     env: 'REDIS_URI'
     help: 'Redis URI'
   }
   {
-    names: ['namespace', 'n']
+    name: 'namespace'
     type: 'string'
     env: 'NAMESPACE'
     default: 'meshblu-webhooks'
@@ -40,25 +40,32 @@ OPTIONS = [
     env: 'JOB_LOG_SAMPLE_RATE'
   }
   {
-    names: ['queue-name', 'q']
+    name: 'queue-name'
     type: 'string'
     env: 'QUEUE_NAME'
     default: 'webhooks'
     help: 'Name of Redis work queue'
   },
   {
-    names: ['queue-timeout']
+    name: 'queue-timeout'
     type: 'positiveInteger'
     env: 'QUEUE_TIMEOUT'
     default: 30
     help: 'BRPOP timeout (in seconds)'
   },
   {
-    names: ['request-timeout']
+    name: 'request-timeout'
     type: 'positiveInteger'
     env: 'REQUEST_TIMEOUT'
     default: 15
     help: 'Request timeout (in seconds)'
+  },
+  {
+    name: 'concurrency'
+    type: 'positiveInteger'
+    env: 'WORK_CONCURRENCY'
+    default: 1
+    help: 'Number of jobs to process at a time'
   },
   {
     name: 'private-key-base64'
@@ -91,6 +98,7 @@ class Command
       @job_log_redis_uri
       @job_log_queue
       @job_log_sample_rate
+      @concurrency
     } = @parseOptions()
     @meshbluConfig = new MeshbluConfig().toJSON()
 
@@ -134,15 +142,17 @@ class Command
 
   run: =>
     workerRunner = new WorkerRunner {
-      jobLogRedisUri: @job_log_redis_uri
-      jobLogQueue: @job_log_queue
+      redisUri: @redis_uri,
+      jobLogRedisUri: @job_log_redis_uri,
+      jobLogQueue: @job_log_queue,
       jobLogSampleRate: @job_log_sample_rate,
       queueName: @queue_name,
       queueTimeout: @queue_timeout,
       requestTimeout: @request_timeout,
+      @concurrency,
       @namespace,
       @privateKey,
-      @meshbluConfig
+      @meshbluConfig,
     }
     workerRunner.run @die
     sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
