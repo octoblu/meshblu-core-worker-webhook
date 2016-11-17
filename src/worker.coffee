@@ -116,7 +116,12 @@ class Worker
     debug 'request.signRequest', signRequest
     options.httpSignature = @_createSignatureOptions() if signRequest
     options.timeout = @requestTimeout
-    options.agentOptions = {maxSockets: 20, minSockets: 5}
+    options.forever = false
+    # if options.json
+    #   options.body = JSON.stringify(options.json) unless _.isBoolean(options.json)
+    #   options.json = false
+    #   options.headers ?= {}
+    #   options.headers['Content-type'] = 'application/json'
     request options, (error, response) =>
       return callback error if error?
       debug 'response.code', response.statusCode
