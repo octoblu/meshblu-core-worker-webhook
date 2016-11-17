@@ -116,6 +116,7 @@ class Worker
     debug 'request.signRequest', signRequest
     options.httpSignature = @_createSignatureOptions() if signRequest
     options.timeout = @requestTimeout
+    options.agentOptions = {maxSockets: 20, minSockets: 5}
     request options, (error, response) =>
       return callback error if error?
       debug 'response.code', response.statusCode

@@ -11,9 +11,11 @@ before_install:
 - npm install --global yarn
 install:
 - yarn install
+script:
+- yarn test
 after_success:
-- 'npm run coverage'
-- 'npm run mocha:json'
+- 'yarn coverage'
+- 'yarn mocha:json'
 - 'bash <(curl -s https://codecov.io/bash)'
 - 'bash <(curl -s https://codecov.octoblu.com/bash)'
 notifications:
