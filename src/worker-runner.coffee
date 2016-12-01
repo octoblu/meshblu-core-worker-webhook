@@ -1,8 +1,10 @@
-_         = require 'lodash'
-JobLogger = require 'job-logger'
-RedisNS   = require '@octoblu/redis-ns'
-Redis     = require 'ioredis'
-Worker    = require './worker'
+_            = require 'lodash'
+JobLogger    = require 'job-logger'
+RedisNS      = require '@octoblu/redis-ns'
+Redis        = require 'ioredis'
+OctobluRaven = require 'octoblu-raven'
+Worker       = require './worker'
+packageJSON  = require '../package.json'
 
 class WorkerRunner
   constructor: (options) ->
@@ -11,6 +13,7 @@ class WorkerRunner
     {@jobLogRedisUri,@jobLogQueue,@jobLogSampleRate} = options
     {@queueName,@queueTimeout} = options
     {@meshbluConfig,@namespace} = options
+    {@octobluRaven} = options
     throw new Error 'WorkerRunner: requires redisUri' unless @redisUri?
     throw new Error 'WorkerRunner: requires jobLogRedisUri' unless @jobLogRedisUri?
     throw new Error 'WorkerRunner: requires jobLogQueue' unless @jobLogQueue?
@@ -21,6 +24,7 @@ class WorkerRunner
     throw new Error 'WorkerRunner: requires privateKey' unless @privateKey?
     throw new Error 'WorkerRunner: requires meshbluConfig' unless @meshbluConfig?
     throw new Error 'WorkerRunner: requires namespace' unless @namespace?
+    @octobluRaven ?= new OctobluRaven { release: packageJSON.version }
 
   stop: (callback) =>
     @worker?.stop?(callback)
@@ -40,6 +44,7 @@ class WorkerRunner
           @meshbluConfig,
           @jobLogSampleRate,
           @concurrency,
+          @octobluRaven
         }
         @worker.run callback
 
@@ -64,10 +69,17 @@ class WorkerRunner
 
   getRedisClient: (redisUri, callback) =>
     callback = _.once callback
-    client = new Redis redisUri, dropBufferSupport: true
+    client = new Redis redisUri, { dropBufferSupport: true }
     client = _.bindAll client, _.functionsIn(client)
-    client.once 'ready', =>
+    client.ping (error) =>
+      return callback error if error?
+      client.once 'error', @dieWithError
+      console.log 'here'
       callback null, client
-    client.once 'error', callback
+
+  dieWithError: (error) =>
+    @octobluRaven.reportError arguments...
+    console.error error.stack
+    process.exit 1
 
 module.exports = WorkerRunner

@@ -3,6 +3,9 @@ request         = require 'request'
 async           = require 'async'
 MeshbluHttp     = require 'meshblu-http'
 SimpleBenchmark = require 'simple-benchmark'
+OctobluRaven    = require 'octoblu-raven'
+{STATUS_CODES}  = require 'http'
+packageJSON     = require '../package.json'
 debug           = require('debug')('meshblu-core-worker-webhook:worker')
 
 class Worker
@@ -11,6 +14,7 @@ class Worker
     { @client, @queueName, @queueTimeout, @consoleError } = options
     { @jobLogger, @jobLogSampleRate } = options
     { @requestTimeout, concurrency } = options
+    { @octobluRaven } = options
     throw new Error('Worker: requires client') unless @client?
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
     throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
@@ -21,6 +25,7 @@ class Worker
     throw new Error('Worker: requires requestTimeout') unless @requestTimeout?
     delete @meshbluConfig.uuid
     delete @meshbluConfig.token
+    @octobluRaven ?= new OctobluRaven { release: packageJSON.version }
     @requestTimeout = @requestTimeout * 1000
     debug 'request timeout', @requestTimeout
     @consoleError ?= @_consoleError
@@ -30,8 +35,8 @@ class Worker
     @queue = async.queue @doTask, concurrency
 
   _consoleError: =>
+    @octobluRaven.reportError arguments...
     debug 'got error', arguments...
-    console.error new Date().toString(), arguments...
 
   doWithNextTick: (callback) =>
     # give some time for garbage collection
@@ -154,8 +159,7 @@ class Worker
     }
 
   _formatErrorLog: (error, url) =>
-    code = error?.code ? 500
-    code = 408 if code == 'ETIMEDOUT'
+    code = @_sanifyCode error?.code
     return {
       metadata:
         code: code
@@ -169,7 +173,7 @@ class Worker
     }
 
   _formatResponseLog: (jobResponse, url) =>
-    code = _.get(jobResponse, 'statusCode') ? 500
+    code = @_sanifyCode _.get(jobResponse, 'statusCode')
     debug 'code', code
     return {
       metadata:
@@ -179,6 +183,12 @@ class Worker
         jobType: 'webhook'
         jobLogs: @_getJobLogs()
     }
+
+  _sanifyCode: (code) =>
+    return code if STATUS_CODES[code]?
+    return 408 if code == 'ETIMEDOUT'
+    return 408 if code == 'ESOCKETTIMEDOUT'
+    return 500
 
   _logJob: ({ error, jobRequest, jobResponse, jobBenchmark }, callback) =>
     url = _.get(jobRequest, 'requestOptions.url')

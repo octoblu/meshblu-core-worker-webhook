@@ -1,6 +1,6 @@
 {
   "name": "meshblu-core-worker-webhook",
-  "version": "3.3.3",
+  "version": "3.4.0",
   "description": "Meshblu Webhook Worker",
   "homepage": "https://github.com/octoblu/meshblu-core-worker-webhook",
   "bugs": "https://github.com/octoblu/meshblu-core-worker-webhook/issues",
@@ -34,6 +34,7 @@
     "meshblu-config": "^6.0.0",
     "meshblu-http": "^9.1.0",
     "nyc": "^9.0.1",
+    "octoblu-raven": "^4.0.3",
     "request": "^2.78.0",
     "sigterm-handler": "^2.0.0",
     "simple-benchmark": "^1.0.11"
@@ -46,7 +47,6 @@
     "mocha": "^3.0.2",
     "mocha-multi": "^0.9.1",
     "mocha-osx-reporter": "^0.1.2",
-    "nyc": "^8.3.0",
     "server-destroy": "^1.0.1",
     "shmock": "^0.8.1",
     "sinon": "^1.17.6",

@@ -4,8 +4,8 @@ dashdash       = require 'dashdash'
 MeshbluConfig  = require 'meshblu-config'
 WorkerRunner   = require './src/worker-runner'
 SigtermHandler = require 'sigterm-handler'
-
-packageJSON = require './package.json'
+OctobluRaven   = require 'octoblu-raven'
+packageJSON    = require './package.json'
 
 OPTIONS = [
   {
@@ -87,7 +87,6 @@ OPTIONS = [
 
 class Command
   constructor: ->
-    process.on 'uncaughtException', @die
     {
       @redis_uri
       @namespace
@@ -101,6 +100,8 @@ class Command
       @concurrency
     } = @parseOptions()
     @meshbluConfig = new MeshbluConfig().toJSON()
+    @octobluRaven = new OctobluRaven { release: packageJSON.version }
+    @octobluRaven.patchGlobal()
 
   parseOptions: =>
     parser = dashdash.createParser({options: OPTIONS})
@@ -141,6 +142,7 @@ class Command
     return options
 
   run: =>
+    @octobluRaven = new OctobluRaven { release: packageJSON.version }
     workerRunner = new WorkerRunner {
       redisUri: @redis_uri,
       jobLogRedisUri: @job_log_redis_uri,
@@ -153,13 +155,15 @@ class Command
       @namespace,
       @privateKey,
       @meshbluConfig,
+      @octobluRaven
     }
     workerRunner.run @die
-    sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM']}
+    sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM'] }
     sigtermHandler.register workerRunner.stop
 
   die: (error) =>
     return process.exit(0) unless error?
+    @octobluRaven.reportError arguments...
     console.error 'ERROR'
     console.error error.stack
     process.exit 1
