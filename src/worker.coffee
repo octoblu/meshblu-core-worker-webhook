@@ -34,9 +34,10 @@ class Worker
     debug 'concurrency', concurrency
     @queue = async.queue @doTask, concurrency
 
-  _consoleError: =>
-    @octobluRaven.reportError arguments...
-    debug 'got error', arguments...
+  _consoleError: (key, error) =>
+    try _.set error, 'reason', key
+    @octobluRaven.reportError error
+    debug 'got error', key, error
 
   doWithNextTick: (callback) =>
     # give some time for garbage collection
@@ -72,9 +73,9 @@ class Worker
   doTask: (jobRequest, callback) =>
     jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
     @_process jobRequest, (error, jobResponse) =>
-      @consoleError 'Process Error', error.stack if error?
+      @consoleError 'Process Error', error if error?
       @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
-        @consoleError 'Log Job Error', error.stack if error?
+        @consoleError 'Log Job Error', error if error?
         callback()
     return # avoid returning promise
 

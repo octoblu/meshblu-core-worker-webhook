@@ -9,13 +9,13 @@ RedisNS        = require '@octoblu/redis-ns'
 describe 'Worker', ->
   beforeEach (done) ->
     redisClient = new Redis 'localhost', dropBufferSupport: true
-    redisClient.on 'ready', =>
+    redisClient.once 'ready', =>
       @client = new RedisNS 'test-worker', redisClient
       @client.del 'work', done
 
   beforeEach (done) ->
     redisClient = new Redis 'localhost', dropBufferSupport: true
-    redisClient.on 'ready', =>
+    redisClient.once 'ready', =>
       client = new RedisNS 'test-job-logger', redisClient
       @jobLogger = new JobLogger {
         client,
@@ -27,7 +27,7 @@ describe 'Worker', ->
 
   beforeEach (done) ->
     redisClient = new Redis 'localhost', dropBufferSupport: true
-    redisClient.on 'ready', =>
+    redisClient.once 'ready', =>
       client = new RedisNS 'test-job-logger', redisClient
       @workLogger = new JobLogger {
         client,

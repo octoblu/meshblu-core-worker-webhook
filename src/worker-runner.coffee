@@ -74,7 +74,6 @@ class WorkerRunner
     client.ping (error) =>
       return callback error if error?
       client.once 'error', @dieWithError
-      console.log 'here'
       callback null, client
 
   dieWithError: (error) =>
