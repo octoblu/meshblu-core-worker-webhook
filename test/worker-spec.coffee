@@ -71,6 +71,41 @@ describe 'Worker', ->
     @meshbluServer.destroy()
 
   describe '->doAndDrain', ->
+    describe 'when webhook is invalid', ->
+      beforeEach (done) ->
+        data =
+          revokeOptions:
+            uuid: 'dumb-uuid'
+            token: 'dumb-token'
+          requestOptions:
+            method: 'POST'
+            url: 'https://exchange-sync.undefined/something'
+            json:
+              some: 'data'
+
+        record = JSON.stringify data
+        @client.lpush 'work', record, done
+        return # stupid promises
+
+      beforeEach (done) ->
+        dumbAuth = new Buffer('dumb-uuid:dumb-token').toString('base64')
+
+        @revokeToken = @meshbluServer
+          .delete '/devices/dumb-uuid/tokens/dumb-token'
+          .set 'Authorization', "Basic #{dumbAuth}"
+          .reply 204
+
+        @sut.doAndDrain done
+
+      it 'should expire the token', ->
+        @revokeToken.done()
+
+      it 'should call consoleError with the correct key', ->
+        expect(@consoleError).to.have.been.calledWith 'Process Error'
+
+      it 'should call consoleError with the correct error', ->
+        expect(@consoleError.args[0][1].code).to.equal 422
+
     describe 'POST /dumb/hook', ->
       beforeEach (done) ->
         data =

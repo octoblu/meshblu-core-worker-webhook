@@ -1,6 +1,8 @@
 _               = require 'lodash'
 request         = require 'request'
+validator       = require 'validator'
 async           = require 'async'
+URL             = require 'url'
 MeshbluHttp     = require 'meshblu-http'
 SimpleBenchmark = require 'simple-benchmark'
 OctobluRaven    = require 'octoblu-raven'
@@ -36,6 +38,7 @@ class Worker
 
   _consoleError: (key, error) =>
     try _.set error, 'reason', key
+    return if _.get(error, 'reportError', true)
     @octobluRaven.reportError error
     debug 'got error', key, error
 
@@ -123,15 +126,35 @@ class Worker
     options.httpSignature = @_createSignatureOptions() if signRequest
     options.timeout = @requestTimeout
     options.forever = false
-    # if options.json
-    #   options.body = JSON.stringify(options.json) unless _.isBoolean(options.json)
-    #   options.json = false
-    #   options.headers ?= {}
-    #   options.headers['Content-type'] = 'application/json'
-    request options, (error, response) =>
+    @_validateUrl options, (error) =>
       return callback error if error?
-      debug 'response.code', response.statusCode
-      callback null, response
+      request options, (error, response) =>
+        return callback error if error?
+        debug 'response.code', response.statusCode
+        callback null, response
+
+  _validateUrl: ({ url, baseUrl, uri }, callback) =>
+    if _.isString url
+      urlParts = URL.parse url
+    else if _.isString baseUrl
+      urlParts = URL.parse baseUrl
+      urlParts.pathname = uri if _.isString(uri)
+    else
+      return callback @_validationError()
+    if _.endsWith urlParts.hostname, 'undefined'
+      return callback @_validationError()
+    if _.endsWith urlParts.hostname, 'null'
+      return callback @_validationError()
+    unless validator.isURL URL.format urlParts
+      return callback @_validationError()
+    callback null
+
+  _validationError: (urlParts) =>
+    error = new Error 'Invalid URL'
+    error.code = 422
+    error.reportError = false
+    error.urlParts = urlParts
+    return error
 
   _createSignatureOptions: =>
     return {
