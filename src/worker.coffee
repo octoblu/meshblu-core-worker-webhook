@@ -126,14 +126,14 @@ class Worker
     options.httpSignature = @_createSignatureOptions() if signRequest
     options.timeout = @requestTimeout
     options.forever = false
-    @_validateUrl options, (error) =>
+    @validateURL options, (error) =>
       return callback error if error?
       request options, (error, response) =>
         return callback error if error?
         debug 'response.code', response.statusCode
         callback null, response
 
-  _validateUrl: ({ url, baseUrl, uri }, callback) =>
+  validateURL: ({ url, baseUrl, uri }, callback) =>
     if _.isString url
       urlParts = URL.parse url
     else if _.isString baseUrl
