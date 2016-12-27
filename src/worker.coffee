@@ -36,8 +36,9 @@ class Worker
     debug 'concurrency', concurrency
     @queue = async.queue @doTask, concurrency
 
-  _consoleError: (key, error) =>
-    try _.set error, 'reason', key
+  _consoleError: (key, error, metadata) =>
+    _.set error, 'reason', key
+    _.set error, 'metadata', metadata if metadata?
     return if _.get(error, 'reportError', true)
     @octobluRaven.reportError error
     debug 'got error', key, error
@@ -76,9 +77,9 @@ class Worker
   doTask: (jobRequest, callback) =>
     jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
     @_process jobRequest, (error, jobResponse) =>
-      @consoleError 'Process Error', error if error?
+      @consoleError 'Process Error', error, {jobRequest} if error?
       @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
-        @consoleError 'Log Job Error', error if error?
+        @consoleError 'Log Job Error', error, {jobResponse,jobRequest} if error?
         callback()
     return # avoid returning promise
 
@@ -140,13 +141,13 @@ class Worker
       urlParts = URL.parse baseUrl
       urlParts.pathname = uri if _.isString(uri)
     else
-      return callback @_validationError()
+      return callback @_validationError(urlParts)
     if _.endsWith urlParts.hostname, 'undefined'
-      return callback @_validationError()
+      return callback @_validationError(urlParts)
     if _.endsWith urlParts.hostname, 'null'
-      return callback @_validationError()
+      return callback @_validationError(urlParts)
     unless validator.isURL URL.format urlParts
-      return callback @_validationError()
+      return callback @_validationError(urlParts)
     callback null
 
   _validationError: (urlParts) =>

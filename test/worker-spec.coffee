@@ -105,6 +105,9 @@ describe 'Worker->doAndDrain', ->
     it 'should call consoleError with the correct error', ->
       expect(@consoleError.args[0][1].code).to.equal 422
 
+    it 'should call consoleError with metadata', ->
+      expect(@consoleError.args[0][2]).to.exist
+
   describe 'POST /dumb/hook', ->
     beforeEach (done) ->
       data =
