@@ -92,8 +92,10 @@ class Worker
   stop: (callback) =>
     debug 'stop'
     @_shouldStop = true
-    @queue.drain = callback
-    _.delay @queue.kill, 1000
+    _.delay =>
+      @queue.kill()
+      callback()
+    , 1000
 
   shouldStop: =>
     debug 'stopping' if @_shouldStop

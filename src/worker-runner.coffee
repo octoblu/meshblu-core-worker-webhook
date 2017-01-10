@@ -27,7 +27,8 @@ class WorkerRunner
     @octobluRaven ?= new OctobluRaven { release: packageJSON.version }
 
   stop: (callback) =>
-    @worker?.stop?(callback)
+    return callback new Error 'worker has not yet started' unless @worker?
+    @worker.stop callback
 
   run: (callback) =>
     @getWorkerClient (error, client) =>
