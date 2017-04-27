@@ -1,23 +1,36 @@
-_               = require 'lodash'
-request         = require 'request'
-validator       = require 'validator'
-async           = require 'async'
-URL             = require 'url'
-MeshbluHttp     = require 'meshblu-http'
-SimpleBenchmark = require 'simple-benchmark'
-OctobluRaven    = require 'octoblu-raven'
-{STATUS_CODES}  = require 'http'
-packageJSON     = require '../package.json'
-debug           = require('debug')('meshblu-core-worker-webhook:worker')
+_                               = require 'lodash'
+request                         = require 'request'
+validator                       = require 'validator'
+async                           = require 'async'
+URL                             = require 'url'
+MeshbluHttp                     = require 'meshblu-http'
+SimpleBenchmark                 = require 'simple-benchmark'
+OctobluRaven                    = require 'octoblu-raven'
+{STATUS_CODES}                  = require 'http'
+packageJSON                     = require '../package.json'
+debug                           = require('debug')('meshblu-core-worker-webhook:worker')
+{ JobManagerResponderDequeuer } = require 'meshblu-core-job-manager'
+GenericPool                     = require 'generic-pool'
+Redis                           = require 'ioredis'
+RedisNS                         = require '@octoblu/redis-ns'
+When                            = require 'when'
 
 class Worker
   constructor: (options={})->
-    { @privateKey, @meshbluConfig } = options
-    { @client, @queueName, @queueTimeout, @consoleError } = options
-    { @jobLogger, @jobLogSampleRate } = options
-    { @requestTimeout, concurrency } = options
-    { @octobluRaven } = options
-    throw new Error('Worker: requires client') unless @client?
+    {
+      @privateKey
+      @meshbluConfig
+      @queueName
+      @queueTimeout
+      @consoleError
+      @jobLogger
+      @jobLogSampleRate
+      @requestTimeout
+      concurrency
+      @octobluRaven
+      @namespace
+      @redisUri
+    } = options
     throw new Error('Worker: requires jobLogger') unless @jobLogger?
     throw new Error('Worker: requires jobLogSampleRate') unless @jobLogSampleRate?
     throw new Error('Worker: requires queueName') unless @queueName?
@@ -25,6 +38,8 @@ class Worker
     throw new Error('Worker: requires privateKey') unless @privateKey?
     throw new Error('Worker: requires meshbluConfig') unless @meshbluConfig?
     throw new Error('Worker: requires requestTimeout') unless @requestTimeout?
+    throw new Error('Worker: requires namespace') unless @namespace?
+    throw new Error('Worker: requires redisUri') unless @redisUri?
     delete @meshbluConfig.uuid
     delete @meshbluConfig.token
     @octobluRaven ?= new OctobluRaven { release: packageJSON.version }
@@ -33,8 +48,23 @@ class Worker
     @consoleError ?= @_consoleError
     @_shouldStop = false
     concurrency ?= 1
+    @maxConnections ?= concurrency
+    @minConnections ?= 1
+    @idleTimeoutMillis ?= 60000
     debug 'concurrency', concurrency
+    @_queuePool = @_createRedisPool { @maxConnections, @minConnections, @idleTimeoutMillis, @namespace, @redisUri }
     @queue = async.queue @doTask, concurrency
+    @dequeuers = []
+    _.times Math.ceil(concurrency/3), (x) =>
+      @dequeuers.push new JobManagerResponderDequeuer {
+        x
+        @queue
+        @_queuePool
+        @onPush
+        _updateHeartbeat: _.noop
+        requestQueueName: @queueName
+        queueTimeoutSeconds: @queueTimeout
+      }
 
   _consoleError: (key, error, metadata) =>
     _.set error, 'reason', key
@@ -43,63 +73,46 @@ class Worker
     @octobluRaven.reportError error
     debug 'got error', key, error
 
-  doWithNextTick: (callback) =>
-    # give some time for garbage collection
+  doTask: (rawData, callback) =>
+    debug 'doTask', {rawData}
     process.nextTick =>
-      @do (error) =>
-        process.nextTick =>
-          callback error
-
-  do: (callback) =>
-    debug 'process do'
-    @client.brpop @queueName, @queueTimeout, (error, result) =>
-      return callback error if error?
-      return callback() unless result?
-      [ _queue, rawData ] = result
       try
         jobRequest = JSON.parse rawData
       catch error
         @consoleError 'Unable to parse', jobRequest
-        @queue.drain = =>
-          debug 'drained...'
-          callback error
+        callback error
         return
-      debug 'insert into queue'
-      @queue.push jobRequest
-      callback null
+      jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
+      @_process jobRequest, (error, jobResponse) =>
+        @consoleError 'Process Error', error, {jobRequest} if error?
+        @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
+          @consoleError 'Log Job Error', error, {jobResponse,jobRequest} if error?
+          callback()
     return # avoid returning promise
 
-  doAndDrain: (callback) =>
-    @do (error) =>
-      return callback error if error?
-      @queue.drain = callback
+  onPush: =>
+    debug 'onPush'
+    @_drained = false
 
-  doTask: (jobRequest, callback) =>
-    jobBenchmark = new SimpleBenchmark { label: 'meshblu-core-worker-webhook:job' }
-    @_process jobRequest, (error, jobResponse) =>
-      @consoleError 'Process Error', error, {jobRequest} if error?
-      @_logJob { error, jobBenchmark, jobResponse, jobRequest }, (error) =>
-        @consoleError 'Log Job Error', error, {jobResponse,jobRequest} if error?
-        callback()
-    return # avoid returning promise
+  start: (callback) =>
+    @_drained = true
+    @queue.drain = =>
+      debug 'drained'
+      @_drained = true
+    tasks = []
+    _.each @dequeuers, (dequeuer) =>
+      tasks.push dequeuer.start
+    async.parallel tasks, callback
 
-  run: (callback) =>
-    async.doUntil @doWithNextTick, @shouldStop, (error) =>
-      debug 'stopped', error
-      @consoleError 'Worker Run Error', error if error?
-      callback error
+  stop: (callback=_.noop) =>
+    tasks = []
+    _.each @dequeuers, (dequeuer) =>
+      tasks.push dequeuer.stop
+    async.parallel tasks, =>
+      async.doUntil @_waitForStopped, (=> @_drained), callback
 
-  stop: (callback) =>
-    debug 'stop'
-    @_shouldStop = true
-    _.delay =>
-      @queue.kill()
-      callback()
-    , 1000
-
-  shouldStop: =>
-    debug 'stopping' if @_shouldStop
-    return @_shouldStop
+  _waitForStopped: (callback) =>
+    _.delay callback, 100
 
   _process: ({ requestOptions, revokeOptions, signRequest }, callback) =>
     signRequest ?= false
@@ -224,5 +237,47 @@ class Worker
     _response = @_formatErrorLog error, url if error?
     debug '_logJob', _request, _response
     @jobLogger.log {request:_request, response:_response, elapsedTime: jobBenchmark.elapsed()}, callback
+
+  _createRedisPool: ({ maxConnections, minConnections, idleTimeoutMillis, evictionRunIntervalMillis, acquireTimeoutMillis, namespace, redisUri }) =>
+    factory =
+      create: =>
+        return When.promise (resolve, reject) =>
+          conx = new Redis redisUri, dropBufferSupport: true
+          client = new RedisNS namespace, conx
+          rejectError = (error) =>
+            return reject error
+
+          client.once 'error', rejectError
+          client.once 'ready', =>
+            client.removeListener 'error', rejectError
+            resolve client
+
+      destroy: (client) =>
+        return When.promise (resolve, reject) =>
+          @_closeClient client, (error) =>
+            return reject error if error?
+            resolve()
+
+      validate: (client) =>
+        return When.promise (resolve) =>
+          client.ping (error) =>
+            return resolve false if error?
+            resolve true
+
+    options = {
+      max: maxConnections
+      min: minConnections
+      testOnBorrow: true
+      idleTimeoutMillis
+      evictionRunIntervalMillis
+      acquireTimeoutMillis
+    }
+
+    pool = GenericPool.createPool factory, options
+
+    pool.on 'factoryCreateError', (error) =>
+      @emit 'factoryCreateError', error
+
+    return pool
 
 module.exports = Worker

@@ -157,7 +157,8 @@ class Command
       @meshbluConfig,
       @octobluRaven
     }
-    workerRunner.run @die
+    workerRunner.start (error) =>
+      @die error if error?
     sigtermHandler = new SigtermHandler { events: ['SIGINT', 'SIGTERM'] }
     sigtermHandler.register workerRunner.stop
 

@@ -30,24 +30,23 @@ class WorkerRunner
     return callback new Error 'worker has not yet started' unless @worker?
     @worker.stop callback
 
-  run: (callback) =>
-    @getWorkerClient (error, client) =>
+  start: (callback) =>
+    @getJobLogger (error, jobLogger) =>
       return callback error if error?
-      @getJobLogger (error, jobLogger) =>
-        return callback error if error?
-        @worker = new Worker {
-          client,
-          jobLogger,
-          @queueName,
-          @queueTimeout,
-          @requestTimeout,
-          @privateKey,
-          @meshbluConfig,
-          @jobLogSampleRate,
-          @concurrency,
-          @octobluRaven
-        }
-        @worker.run callback
+      @worker = new Worker {
+        jobLogger
+        @queueName
+        @queueTimeout
+        @requestTimeout
+        @privateKey
+        @meshbluConfig
+        @jobLogSampleRate
+        @concurrency
+        @octobluRaven
+        @namespace
+        @redisUri
+      }
+      @worker.start callback
 
   getJobLogger: (callback) =>
     indexPrefix = 'metric:meshblu-core-worker-webhook'
@@ -61,12 +60,6 @@ class WorkerRunner
         type
       }
       callback null, jobLogger
-
-  getWorkerClient: (callback) =>
-    @getRedisClient @redisUri, (error, client) =>
-      return callback error if error?
-      clientNS  = new RedisNS @namespace, client
-      callback null, clientNS
 
   getRedisClient: (redisUri, callback) =>
     callback = _.once callback

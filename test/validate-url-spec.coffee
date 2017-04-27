@@ -3,6 +3,8 @@ Worker         = require '../src/worker'
 
 describe 'Worker->validateURL', ->
   beforeEach ->
+    @redisUri = 'localhost'
+    @namespace = 'test-job-logger'
     queueName = 'work'
     queueTimeout = 1
     meshbluConfig =
@@ -22,6 +24,8 @@ describe 'Worker->validateURL', ->
       privateKey,
       meshbluConfig,
       @consoleError
+      @namespace
+      @redisUri
     }
 
   describe 'when the domain is the string undefined', ->

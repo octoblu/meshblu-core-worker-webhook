@@ -6,15 +6,17 @@ JobLogger      = require 'job-logger'
 { privateKey } = require './some-private-key.json'
 RedisNS        = require '@octoblu/redis-ns'
 
-describe 'Worker->doAndDrain', ->
+describe 'Worker->start', ->
   beforeEach (done) ->
-    redisClient = new Redis 'localhost', dropBufferSupport: true
+    @namespace = 'test-worker'
+    @redisUri = 'localhost'
+    redisClient = new Redis @redisUri, dropBufferSupport: true
     redisClient.once 'ready', =>
-      @client = new RedisNS 'test-worker', redisClient
+      @client = new RedisNS @namespace, redisClient
       @client.del 'work', done
 
   beforeEach (done) ->
-    redisClient = new Redis 'localhost', dropBufferSupport: true
+    redisClient = new Redis @redisUri, dropBufferSupport: true
     redisClient.once 'ready', =>
       client = new RedisNS 'test-job-logger', redisClient
       @jobLogger = new JobLogger {
@@ -26,9 +28,9 @@ describe 'Worker->doAndDrain', ->
       done()
 
   beforeEach (done) ->
-    redisClient = new Redis 'localhost', dropBufferSupport: true
+    redisClient = new Redis @redisUri, dropBufferSupport: true
     redisClient.once 'ready', =>
-      client = new RedisNS 'test-job-logger', redisClient
+      client = new RedisNS @namespace, redisClient
       @workLogger = new JobLogger {
         client,
         indexPrefix: 'test:metric:webhook',
@@ -64,6 +66,8 @@ describe 'Worker->doAndDrain', ->
       privateKey,
       meshbluConfig,
       @consoleError
+      @namespace
+      @redisUri
     }
 
   afterEach ->
@@ -94,7 +98,8 @@ describe 'Worker->doAndDrain', ->
         .set 'Authorization', "Basic #{dumbAuth}"
         .reply 204
 
-      @sut.doAndDrain done
+      @sut.start =>
+        @sut.stop done
 
     it 'should expire the token', ->
       @revokeToken.done()
@@ -145,7 +150,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 204
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hit up the webhook', ->
         @dumbHook.done()
@@ -172,7 +178,8 @@ describe 'Worker->doAndDrain', ->
           .delay 1100
           .reply 204
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should expire the token', ->
         @revokeToken.done()
@@ -196,7 +203,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 204
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hitting up the webhook', ->
         @dumbHook.done()
@@ -219,7 +227,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 500
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hit up the webhook', ->
         @dumbHook.done()
@@ -248,7 +257,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 200
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hit up the webhook', ->
         @dumbHook.done()
@@ -297,7 +307,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 204
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hit up the webhook', ->
         @dumbHook.done()
@@ -339,7 +350,8 @@ describe 'Worker->doAndDrain', ->
           }
           .reply 204
 
-        @sut.doAndDrain done
+        @sut.start =>
+          @sut.stop done
 
       it 'should hit up the webhook', ->
         @dumbHook.done()
