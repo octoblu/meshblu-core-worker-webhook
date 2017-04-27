@@ -1,31 +1,34 @@
 language: node_js
 node_js:
-- '5'
+  - '5'
 services:
-- mongodb
-- redis
+  - mongodb
+  - redis
 branches:
   only:
-  - '/^v[0-9]/'
+    - '/^v[0-9]/'
 before_install:
-- npm install --global yarn
+  - npm install --global yarn
 install:
-- yarn install
+  - yarn install
 script:
-- yarn test
+  - yarn test
 after_success:
-- 'yarn coverage'
-- 'yarn mocha:json'
-- 'bash <(curl -s https://codecov.io/bash)'
-- 'bash <(curl -s https://codecov.octoblu.com/bash)'
+  - yarn coverage
+  - 'yarn mocha:json'
+  - npm run coverage
+  - 'npm run mocha:json'
+  - 'bash <(curl -s https://codecov.io/bash)'
+  - 'bash <(curl -s https://codecov.octoblu.com/bash)'
 notifications:
   webhooks:
-  - 'https://beekeeper.octoblu.com/webhooks/travis:ci'
+    - 'https://beekeeper.octoblu.com/webhooks/travis:ci'
 deploy:
   provider: npm
   email: serveradmin@octoblu.com
   api_key:
-    secure: "nJpvMz20PUCjmOSq2zLMqvt9TEOYGB4wxTJYaMqocY1nuMr3wXOvoGLBMseXdQ4fJOAzpAiORASZd1wT/n1kAYU/bLayyjI0I4ewANXxR5o+40PMgDNB3hPAM7wqoDzSR2fEapCAcM8184eOOS21E9SdFYEDLmZiGI7qXIUmG87kc82hf7dstpkZ/5SmqXX9PAMZeKpaI8tW0DCiImGEEKIQErdWkceSsKC+8o3SKIw+CWHo98qKV70GPPgg31XhI/LLBwE4QLQxMi34QbA0bPcXwXDsC061LvzrEJzQq1YIqRVwO5Phx0SwPc0cI51+0r/EqowSv3xACzRGUrnmCgCblM9LkVkNHUO6RFt7CtYUKinWZQ98hBLxtz75FOO8uNSP3p+cwl2v53BQvlxb1uM3+rJKc9UUTm5LSkQ2OsB/FmH9hoe4Ir891KNFY+OraiFuY+YQUgWBAnNJNNDrBmFRDxVjezvBtYs3FLKMB7nZYGTK2SoLAuhnajicR7G2dkTKsDGplkZfOhti3dCgwgi1cmCjDAL3eG1PaxeOENS4HboW8uAC7GV6Bsy8BvAzmFuL6hwEr+n+wlzlfOyVVcnOKDSRdXe3hPWK7iwjinTT0X72E55V+JEPvXGnajNeuF8mtRiXxENzhZdzH4FdAoe4kIJYPyy+7FB2Vpu38yg="
-  on:
+    secure: >-
+      nJpvMz20PUCjmOSq2zLMqvt9TEOYGB4wxTJYaMqocY1nuMr3wXOvoGLBMseXdQ4fJOAzpAiORASZd1wT/n1kAYU/bLayyjI0I4ewANXxR5o+40PMgDNB3hPAM7wqoDzSR2fEapCAcM8184eOOS21E9SdFYEDLmZiGI7qXIUmG87kc82hf7dstpkZ/5SmqXX9PAMZeKpaI8tW0DCiImGEEKIQErdWkceSsKC+8o3SKIw+CWHo98qKV70GPPgg31XhI/LLBwE4QLQxMi34QbA0bPcXwXDsC061LvzrEJzQq1YIqRVwO5Phx0SwPc0cI51+0r/EqowSv3xACzRGUrnmCgCblM9LkVkNHUO6RFt7CtYUKinWZQ98hBLxtz75FOO8uNSP3p+cwl2v53BQvlxb1uM3+rJKc9UUTm5LSkQ2OsB/FmH9hoe4Ir891KNFY+OraiFuY+YQUgWBAnNJNNDrBmFRDxVjezvBtYs3FLKMB7nZYGTK2SoLAuhnajicR7G2dkTKsDGplkZfOhti3dCgwgi1cmCjDAL3eG1PaxeOENS4HboW8uAC7GV6Bsy8BvAzmFuL6hwEr+n+wlzlfOyVVcnOKDSRdXe3hPWK7iwjinTT0X72E55V+JEPvXGnajNeuF8mtRiXxENzhZdzH4FdAoe4kIJYPyy+7FB2Vpu38yg=
+  'on':
     tags: true
     branches: true
