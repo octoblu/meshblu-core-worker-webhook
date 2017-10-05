@@ -18,8 +18,8 @@ OPTIONS = [
     name: 'namespace'
     type: 'string'
     env: 'NAMESPACE'
-    default: 'meshblu-webhooks'
     help: 'Redis namespace for redis-ns'
+    default: 'meshblu-webhooks'
   }
   {
     name: 'job-log-redis-uri'
@@ -32,6 +32,7 @@ OPTIONS = [
     type: 'string'
     help: 'Job log queue name'
     env: 'JOB_LOG_QUEUE'
+    default: 'sample-rate:1.00'
   }
   {
     name: 'job-log-sample-rate'
@@ -43,29 +44,29 @@ OPTIONS = [
     name: 'queue-name'
     type: 'string'
     env: 'QUEUE_NAME'
-    default: 'webhooks'
     help: 'Name of Redis work queue'
+    default: 'webhooks'
   },
   {
     name: 'queue-timeout'
     type: 'positiveInteger'
     env: 'QUEUE_TIMEOUT'
-    default: 30
     help: 'BRPOP timeout (in seconds)'
+    default: 30
   },
   {
     name: 'request-timeout'
     type: 'positiveInteger'
     env: 'REQUEST_TIMEOUT'
-    default: 15
     help: 'Request timeout (in seconds)'
+    default: 15
   },
   {
     name: 'concurrency'
     type: 'positiveInteger'
     env: 'WORK_CONCURRENCY'
-    default: 1
     help: 'Number of jobs to process at a time'
+    default: 5
   },
   {
     name: 'private-key-base64'
@@ -145,7 +146,7 @@ class Command
     @octobluRaven = new OctobluRaven { release: packageJSON.version }
     workerRunner = new WorkerRunner {
       redisUri: @redis_uri,
-      jobLogRedisUri: @job_log_redis_uri,
+      jobLogRedisUri: @job_log_redis_uri ? @redis_uri,
       jobLogQueue: @job_log_queue,
       jobLogSampleRate: @job_log_sample_rate,
       queueName: @queue_name,
