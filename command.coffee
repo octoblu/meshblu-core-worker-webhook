@@ -39,6 +39,7 @@ OPTIONS = [
     type: 'number'
     help: 'Job log sample rate (0.00 to 1.00)'
     env: 'JOB_LOG_SAMPLE_RATE'
+    default: 0
   }
   {
     name: 'queue-name'
@@ -117,6 +118,7 @@ class Command
       process.exit 0
 
     options.namespace ?= process.env.REDIS_NAMESPACE
+    options.job_log_redis_uri ?= options.redis_uri
 
     unless options.redis_uri? && options.namespace? && options.queue_name? && options.queue_timeout?
       console.error "usage: meshblu-core-worker-webhook [OPTIONS]\noptions:\n#{parser.help({includeEnv: true, includeDefaults: true})}"
