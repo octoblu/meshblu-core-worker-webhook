@@ -28,6 +28,16 @@ describe 'Worker->validateURL', ->
       @redisUri
     }
 
+  describe 'when the domain is the just a domain', ->
+    beforeEach (done) ->
+      @sut.validateURL {
+        url: 'https://nanocyte-engine/something'
+      }, (@error) =>
+        done()
+
+    it 'should be ok', ->
+      expect(@error).not.to.exist
+      
   describe 'when the domain is the string undefined', ->
     beforeEach (done) ->
       @sut.validateURL {

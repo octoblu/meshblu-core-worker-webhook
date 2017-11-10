@@ -161,7 +161,7 @@ class Worker
       return callback @_validationError(urlParts)
     if _.endsWith urlParts.hostname, 'null'
       return callback @_validationError(urlParts)
-    unless validator.isURL URL.format urlParts
+    unless validator.isURL(URL.format(urlParts), require_tld: false)
       return callback @_validationError(urlParts)
     callback null
 
